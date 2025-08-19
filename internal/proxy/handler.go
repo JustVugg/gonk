@@ -12,7 +12,7 @@ import (
     
     "github.com/gorilla/websocket"
     
-    "gonk-local/internal/config"
+    "github.com/JustVugg/gonk/internal/config"
 )
 
 type Handler struct {
@@ -138,4 +138,5 @@ func (h *Handler) createHTTPProxy(target *url.URL) *httputil.ReverseProxy {
     }
 
     return proxy
+
 }
