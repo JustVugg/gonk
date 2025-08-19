@@ -76,7 +76,7 @@ Traditional API gateways are bloated, cloud-dependent, and complex. GONK is diff
 
 ```bash
 # Download the latest release
-wget https://github.com/zrufy/gonk/releases/latest/download/gonk-linux-amd64
+wget https://github.com/JustVugg/gonk/releases/latest/download/gonk-linux-amd64
 chmod +x gonk-linux-amd64
 
 # Create a basic configuration
@@ -263,7 +263,7 @@ database:
 
 ```bash
 # Pull the image
-docker pull ghcr.io/zrufy/gonk:latest
+docker pull ghcr.io/JustVugg/gonk:latest
 
 # Run with custom config
 docker run -d \
@@ -271,7 +271,7 @@ docker run -d \
   -p 8080:8080 \
   -v $(pwd)/gonk.yaml:/etc/gonk/gonk.yaml \
   -e JWT_SECRET=your-secret-key \
-  ghcr.io/zrufy/gonk:latest
+  ghcr.io/JustVugg/gonk:latest
 
 ```
 
@@ -283,7 +283,7 @@ version: '3.8'
 
 services:
   gonk:
-    image: ghcr.io/zrufy/gonk:latest
+    image: ghcr.io/JustVugg/gonk:latest
     ports:
       - "8080:8080"
     volumes:
@@ -342,7 +342,7 @@ spec:
     spec:
       containers:
       - name: gonk
-        image: ghcr.io/zrufy/gonk:latest
+        image: ghcr.io/JustVugg/gonk:latest
         ports:
         - containerPort: 8080
         volumeMounts:
@@ -591,7 +591,7 @@ cache:
 
 ```bash
 # Clone the repository
-git clone https://github.com/zrufy/gonk
+git clone https://github.com/JustVugg/gonk
 cd gonk
 
 # Download dependencies
@@ -883,7 +883,7 @@ We love contributions! Please see CONTRIBUTING.md for details.
 
 ```bash
 # Fork and clone
-git clone https://github.com/zrufy/gonk
+git clone https://github.com/JustVugg/gonk
 cd gonk
 
 # Create branch
@@ -919,6 +919,7 @@ Built with ❤️ for the Edge
 Simple • Fast • Reliable
 
 </div>
+
 
 
 
