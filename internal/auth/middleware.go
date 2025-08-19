@@ -3,7 +3,7 @@ package auth
 import (
     "net/http"
     
-    "github.com/zrufy/gonk/internal/config"
+    "github.com/JustVugg/gonk/internal/config"
 )
 
 func Middleware(authConfig *config.AuthConfig, routeAuth *config.RouteAuth, next http.Handler) http.Handler {
@@ -41,3 +41,4 @@ func Middleware(authConfig *config.AuthConfig, routeAuth *config.RouteAuth, next
     })
 
 }
+
