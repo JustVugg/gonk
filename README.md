@@ -5,7 +5,7 @@
 [![Go Version](https://img.shields.io/badge/go-1.21+-blue.svg)](https://go.dev/)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 
-<img src="docs/images/gonk-logo.png" alt="GONK Logo" width="300">
+<img src="docs/images/gonk-logo.webp" alt="GONK Logo" width="300">
 
 **Zero Cloud. Zero AI. Pure Performance.**
 
@@ -919,5 +919,6 @@ Built with ❤️ for the Edge
 Simple • Fast • Reliable
 
 </div>
+
 
 
