@@ -4,10 +4,6 @@
 
 [![Go Version](https://img.shields.io/badge/go-1.21+-blue.svg)](https://go.dev/)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
-[![Build Status](https://img.shields.io/github/workflow/status/zrufy/gonk/CI)](https://github.com/zrufy/gonk/actions)
-[![Go Report Card](https://goreportcard.com/badge/github.com/zrufy/gonk)](https://goreportcard.com/report/github.com/zrufy/gonk)
-[![Docker Pulls](https://img.shields.io/docker/pulls/zrufy/gonk)](https://hub.docker.com/r/zrufy/gonk)
-[![GitHub Stars](https://img.shields.io/github/stars/zrufy/gonk?style=social)](https://github.com/zrufy/gonk)
 
 <img src="docs/images/gonk-logo.png" alt="GONK Logo" width="300">
 
@@ -923,4 +919,5 @@ Built with ❤️ for the Edge
 Simple • Fast • Reliable
 
 </div>
+
 
