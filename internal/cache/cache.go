@@ -7,7 +7,7 @@ import (
     "sync"
     "time"
     
-    "gonk-local/internal/config"
+    "github.com/zrufy/gonk/internal/config"
 )
 
 type Entry struct {
