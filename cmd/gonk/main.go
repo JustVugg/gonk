@@ -9,8 +9,8 @@ import (
     "os/signal"
     "syscall"
     
-    "github.com/zrufy/gonk/internal/config"
-    "github.com/zrufy/gonk/internal/server"
+    "github.com/JustVugg/gonk/internal/config"
+    "github.com/JustVugg/gonk/internal/server"
 )
 
 var (
