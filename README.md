@@ -922,5 +922,5 @@ Built with ❤️ for the Edge
 
 Simple • Fast • Reliable
 
-⬆ Back to Top
 </div>
+
