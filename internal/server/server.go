@@ -14,14 +14,14 @@ import (
     "golang.org/x/net/http2"
     "golang.org/x/net/http2/h2c"
     
-    "github.com/zrufy/gonk/internal/auth"
-    "github.com/zrufy/gonk/internal/cache"
-    "github.com/zrufy/gonk/internal/config"
-    "github.com/zrufy/gonk/internal/health"
-    "github.com/zrufy/gonk/internal/metrics"
-    "github.com/zrufy/gonk/internal/middleware"
-    "github.com/zrufy/gonk/internal/proxy"
-    "github.com/zrufy/gonk/internal/resilience"
+    "github.com/JustVugg/gonk/internal/auth"
+    "github.com/JustVugg/gonk/internal/cache"
+    "github.com/JustVugg/gonk/internal/config"
+    "github.com/JustVugg/gonk/internal/health"
+    "github.com/JustVugg/gonk/internal/metrics"
+    "github.com/JustVugg/gonk/internal/middleware"
+    "github.com/JustVugg/gonk/internal/proxy"
+    "github.com/JustVugg/gonk/internal/resilience"
 )
 
 type Server struct {
