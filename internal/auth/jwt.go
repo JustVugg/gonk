@@ -7,7 +7,7 @@ import (
     "time"
     
     "github.com/golang-jwt/jwt/v5"
-    "github.com/zrufy/gonk/internal/config"
+    "github.com/JustVugg/gonk/internal/config"
 )
 
 func ValidateJWT(r *http.Request, cfg *config.JWTConfig) (bool, error) {
@@ -61,3 +61,4 @@ func extractToken(r *http.Request, cfg *config.JWTConfig) string {
     return header
 
 }
+
