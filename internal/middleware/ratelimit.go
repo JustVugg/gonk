@@ -7,7 +7,7 @@ import (
     "time"
     "fmt" 
     "golang.org/x/time/rate"
-    "gonk-local/internal/config"
+    "github.com/JustVugg/gonk/internal/"
 )
 
 type rateLimiter struct {
@@ -76,4 +76,5 @@ func getLimiter(key string, rps, burst int) *rate.Limiter {
     }
 
     return limiter
+
 }
