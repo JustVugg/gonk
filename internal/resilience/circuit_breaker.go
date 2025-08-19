@@ -6,7 +6,7 @@ import (
     "sync"
     "time"
     
-    "gonk-local/internal/config"
+    "github.com/JustVugg/gonk/internal/config"
 )
 
 type State int
