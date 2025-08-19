@@ -1,0 +1,138 @@
+# GONK Community Edition Configuration Example
+server:
+  listen: ":8080"
+  http2: true  # Enable HTTP/2 for gRPC support
+  hot_reload: true  # Auto-reload config on changes
+  read_timeout: 30s
+  write_timeout: 30s
+  idle_timeout: 120s
+  
+  cors:
+    enabled: true
+    allowed_origins: ["*"]
+    allowed_methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
+    allowed_headers: ["*"]
+    max_age: 3600
+
+# Logging
+logging:
+  level: info
+  format: text  # text or json
+  output: stdout  # stdout or file path
+
+# Metrics (Prometheus)
+metrics:
+  enabled: true
+  path: /metrics
+
+# Authentication
+auth:
+  jwt:
+    enabled: true
+    secret_key: "${JWT_SECRET:-change-me-in-production}"
+    header: "Authorization"
+    prefix: "Bearer"
+    expiry_check: true
+  
+  api_key:
+    enabled: true
+    header: "X-API-Key"
+    keys:
+      - key: "${API_KEY_1:-dev-key-123}"
+        client_id: "dev-client"
+      - key: "${API_KEY_2:-prod-key-456}"
+        client_id: "prod-client"
+
+# Global Rate Limiting
+rate_limit:
+  enabled: true
+  requests_per_second: 100
+  burst: 200
+  by: "ip"  # "ip" or "client_id"
+
+# Routes
+routes:
+  # REST API Example
+  - name: "api-v1"
+    path: "/api/v1/*"
+    methods: ["GET", "POST", "PUT", "DELETE"]
+    upstream: "http://api-backend:3000"
+    protocol: "http"
+    strip_path: false
+    
+    auth:
+      type: "jwt"
+      required: true
+    
+    rate_limit:
+      enabled: true
+      requests_per_second: 50
+      burst: 100
+    
+    circuit_breaker:
+      enabled: true
+      max_failures: 5
+      reset_timeout: 60s
+      half_open_max_reqs: 3
+    
+    cache:
+      enabled: true
+      ttl: 60s
+      methods: ["GET"]
+    
+    transform:
+      request:
+        add_headers:
+          X-Gateway: "gonk"
+          X-Gateway-Version: "1.0.0"
+        remove_headers: ["Cookie"]
+      
+      response:
+        add_headers:
+          X-Response-From: "gonk"
+        remove_headers: ["Server"]
+    
+    headers:
+      X-Custom-Header: "custom-value"
+    
+    timeout:
+      connect: 5s
+      read: 30s
+      write: 30s
+
+  # WebSocket Example
+  - name: "websocket"
+    path: "/ws/*"
+    methods: ["GET"]
+    upstream: "ws://websocket-backend:8080"
+    protocol: "ws"
+    strip_path: true
+    
+    auth:
+      type: "api_key"
+      required: false
+
+  # gRPC Example
+  - name: "grpc-service"
+    path: "/grpc/*"
+    methods: ["POST"]
+    upstream: "grpc-backend:50051"
+    protocol: "grpc"
+    
+    auth:
+      type: "jwt"
+      required: true
+    
+    timeout:
+      read: 60s
+      write: 60s
+
+  # Public Health Check (no auth)
+  - name: "health"
+    path: "/health"
+    methods: ["GET"]
+    upstream: "http://api-backend:3000/health"
+    protocol: "http"
+    
+    cache:
+      enabled: false
