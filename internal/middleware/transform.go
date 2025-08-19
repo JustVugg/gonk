@@ -4,7 +4,7 @@ import (
     "net/http"
     "strings"
     
-    "github.com/JustVugg/gonk/internal/"
+    "github.com/JustVugg/gonk/internal/config"
 )
 
 func Transform(config *config.TransformConfig, next http.Handler) http.Handler {
@@ -75,3 +75,4 @@ func (w *transformResponseWriter) Write(b []byte) (int, error) {
     return w.ResponseWriter.Write(b)
 
 }
+
