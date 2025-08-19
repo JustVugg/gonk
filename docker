@@ -1,0 +1,4 @@
+docker run -d \
+  -p 8080:8080 \
+  -v $(pwd)/gonk.yaml:/etc/gonk/gonk.yaml \
+  ghcr.io/yourusername/gonk:latest
