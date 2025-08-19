@@ -7,7 +7,7 @@
 
 <img src="gonk-logo.webp" alt="GONK Logo" width="300">
 
-**Zero Cloud. Zero AI. Pure Performance.**
+**Zero Cloud Pure Performance**
 
 [Features](#-features) • [Quick Start](#-quick-start) • [Documentation](#-documentation) • [Performance](#-performance) • [Contributing](#-contributing)
 
@@ -919,6 +919,7 @@ Built with ❤️ for the Edge
 Simple • Fast • Reliable
 
 </div>
+
 
 
 
