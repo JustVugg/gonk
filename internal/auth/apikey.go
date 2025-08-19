@@ -3,7 +3,7 @@ package auth
 import (
     "net/http"
     
-    "gonk-local/internal/config"
+    "github.com/zrufy/gonk/internal/config"
 )
 
 func ValidateAPIKey(r *http.Request, cfg *config.APIKeyConfig) (bool, error) {
