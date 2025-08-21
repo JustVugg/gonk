@@ -12,7 +12,7 @@ import (
     
     "github.com/gorilla/websocket"
     
-    "github.com/JustVugg/gonk/internal/config"
+    "gonk-local/internal/config"
 )
 
 type Handler struct {
@@ -50,7 +50,7 @@ func NewHandler(route *config.Route) (*Handler, error) {
             }
         }
         
-        h.grpcProxy, err = newGRPCProxy(upstreamURL.Host, director)
+        h.grpcProxy, err = newGRPCProxy(route.Upstream, director)
         if err != nil {
             return nil, fmt.Errorf("failed to create gRPC proxy: %w", err)
         }
@@ -138,5 +138,4 @@ func (h *Handler) createHTTPProxy(target *url.URL) *httputil.ReverseProxy {
     }
 
     return proxy
-
 }
