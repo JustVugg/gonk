@@ -1,13 +1,9 @@
-# GONK - Ultra-Lightweight Edge API Gateway
-
 <div align="center">
-
+<img src="gonk.png" alt="GONK Logo" width="400">
+<br><br>
+  
 [![Go Version](https://img.shields.io/badge/go-1.21+-blue.svg)](https://go.dev/)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
-
-<img src="gonk-logo.webp" alt="GONK Logo" width="300">
-
-**Zero Cloud Pure Performance**
 
 [Features](#-features) • [Quick Start](#-quick-start) • [Documentation](#-documentation) • [Performance](#-performance) • [Contributing](#-contributing)
 
@@ -919,6 +915,7 @@ Built with ❤️ for the Edge
 Simple • Fast • Reliable
 
 </div>
+
 
 
 
