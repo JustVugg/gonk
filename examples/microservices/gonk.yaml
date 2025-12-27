@@ -1,0 +1,157 @@
+# GONK Microservices Configuration
+# Load balancing, circuit breakers, caching
+
+server:
+  listen: ":8080"
+  http2: true
+  hot_reload: true
+  
+  cors:
+    enabled: true
+    allowed_origins: ["https://app.example.com"]
+    allowed_methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
+    allowed_headers: ["*"]
+    max_age: 3600
+
+logging:
+  level: info
+  format: json
+  output: stdout
+
+metrics:
+  enabled: true
+  path: /metrics
+
+auth:
+  jwt:
+    enabled: true
+    secret_key: "${JWT_SECRET}"
+    header: "Authorization"
+    prefix: "Bearer"
+    expiry_check: true
+    validate_roles: true
+    validate_scopes: true
+
+rate_limit:
+  enabled: true
+  requests_per_second: 1000
+  burst: 2000
+  by: "ip"
+
+routes:
+  # User service with load balancing
+  - name: "user-service"
+    path: "/api/users/*"
+    methods: ["GET", "POST", "PUT", "DELETE"]
+    upstreams:
+      - url: "http://user-service-1:3000"
+        weight: 70
+        health_check: "/health"
+      - url: "http://user-service-2:3000"
+        weight: 30
+        health_check: "/health"
+    
+    load_balancing:
+      strategy: "weighted"
+      health_check_interval: 10s
+      health_check_timeout: 5s
+    
+    auth:
+      type: "jwt"
+      required: true
+      permissions:
+        - role: "user"
+          methods: ["GET"]
+        - role: "admin"
+          methods: ["GET", "POST", "PUT", "DELETE"]
+    
+    circuit_breaker:
+      enabled: true
+      max_failures: 5
+      reset_timeout: 60s
+    
+    cache:
+      enabled: true
+      ttl: 300s
+      methods: ["GET"]
+
+  # Order service
+  - name: "order-service"
+    path: "/api/orders/*"
+    methods: ["GET", "POST", "PUT", "DELETE"]
+    upstreams:
+      - url: "http://order-service:3001"
+        weight: 100
+        health_check: "/health"
+    
+    auth:
+      type: "jwt"
+      required: true
+      required_scopes: ["read:orders", "write:orders"]
+    
+    circuit_breaker:
+      enabled: true
+      max_failures: 3
+      reset_timeout: 30s
+
+  # Payment service (high security)
+  - name: "payment-service"
+    path: "/api/payments/*"
+    methods: ["POST"]
+    upstreams:
+      - url: "http://payment-service:3002"
+        weight: 100
+    
+    auth:
+      type: "jwt"
+      required: true
+      allowed_roles: ["admin", "payment-processor"]
+      required_scopes: ["write:payments"]
+    
+    rate_limit:
+      enabled: true
+      requests_per_second: 10
+      burst: 20
+      by: "client_id"
+    
+    timeout:
+      connect: 5s
+      read: 30s
+      write: 30s
+
+  # gRPC inventory service
+  - name: "grpc-inventory"
+    path: "/grpc/inventory/*"
+    methods: ["POST"]
+    upstreams:
+      - url: "grpc-service:50051"
+        weight: 100
+    protocol: "grpc"
+    
+    auth:
+      type: "jwt"
+      required: true
+
+  # WebSocket notifications
+  - name: "notifications"
+    path: "/ws/notifications"
+    methods: ["GET"]
+    upstreams:
+      - url: "ws://notification-service:8080"
+        weight: 100
+    protocol: "ws"
+    
+    auth:
+      type: "jwt"
+      required: true
+
+  # Public health check
+  - name: "health"
+    path: "/health"
+    methods: ["GET"]
+    upstreams:
+      - url: "http://user-service:3000/health"
+        weight: 100
+    
+    cache:
+      enabled: false
