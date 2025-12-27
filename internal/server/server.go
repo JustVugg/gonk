@@ -2,7 +2,11 @@ package server
 
 import (
     "context"
+    "crypto/tls"
+    "crypto/x509"
     "encoding/json"
+    "fmt"
+    "io/ioutil"
     "log"
     "net/http"
     "strings"
@@ -58,7 +62,57 @@ func New(cfg *config.Config) *Server {
         IdleTimeout:  cfg.Server.IdleTimeout,
     }
 
+    // Configure TLS if enabled
+    if cfg.Server.TLS != nil && cfg.Server.TLS.Enabled {
+        tlsConfig, err := s.configureTLS(cfg.Server.TLS)
+        if err != nil {
+            log.Fatalf("Failed to configure TLS: %v", err)
+        }
+        s.httpServer.TLSConfig = tlsConfig
+    }
+
     return s
+}
+
+func (s *Server) configureTLS(tlsCfg *config.TLSConfig) (*tls.Config, error) {
+    cfg := &tls.Config{
+        MinVersion: tls.VersionTLS12,
+        CipherSuites: []uint16{
+            tls.TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
+            tls.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
+            tls.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
+            tls.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
+        },
+    }
+
+    // Load client CA if mTLS is configured
+    if tlsCfg.ClientCA != "" {
+        caCert, err := ioutil.ReadFile(tlsCfg.ClientCA)
+        if err != nil {
+            return nil, fmt.Errorf("failed to read client CA: %w", err)
+        }
+
+        caCertPool := x509.NewCertPool()
+        if !caCertPool.AppendCertsFromPEM(caCert) {
+            return nil, fmt.Errorf("failed to parse client CA")
+        }
+
+        cfg.ClientCAs = caCertPool
+
+        // Configure client authentication mode
+        switch tlsCfg.ClientAuth {
+        case "require":
+            cfg.ClientAuth = tls.RequireAndVerifyClientCert
+            log.Println("mTLS enabled: requiring client certificates")
+        case "request":
+            cfg.ClientAuth = tls.VerifyClientCertIfGiven
+            log.Println("mTLS enabled: client certificates optional")
+        default:
+            cfg.ClientAuth = tls.NoClientCert
+        }
+    }
+
+    return cfg, nil
 }
 
 func (s *Server) setupRouter() {
@@ -104,9 +158,12 @@ func (s *Server) setupRoutes() {
 }
 
 func (s *Server) addRoute(route config.Route) {
-    log.Printf("🔧 Adding route: %s [%s] -> %s", route.Name, route.Path, route.Upstream)
+    log.Printf("📧 Adding route: %s [%s] -> %d upstream(s)", route.Name, route.Path, len(route.Upstreams))
 
-    s.healthMonitor.RegisterUpstream(route.Name, route.Upstream)
+    // Register upstreams with health monitor
+    for _, upstream := range route.Upstreams {
+        s.healthMonitor.RegisterUpstream(route.Name, upstream.URL)
+    }
 
     proxyHandler, err := proxy.NewHandler(&route)
     if err != nil {
@@ -116,6 +173,7 @@ func (s *Server) addRoute(route config.Route) {
 
     handler := http.Handler(proxyHandler)
 
+    // Apply middleware in order (innermost first)
     if route.Transform != nil {
         handler = middleware.Transform(route.Transform, handler)
     }
@@ -136,7 +194,7 @@ func (s *Server) addRoute(route config.Route) {
         handler = middleware.RateLimit(s.config.RateLimit, handler)
     }
 
-    // FIX: Usa s.config.Auth direttamente, non &s.config.Auth
+    // Authentication and authorization middleware (outermost)
     if route.Auth != nil && route.Auth.Type != "none" {
         handler = auth.Middleware(&s.config.Auth, route.Auth, handler)
     }
@@ -208,18 +266,20 @@ func (s *Server) infoHandler(w http.ResponseWriter, r *http.Request) {
     
     info := map[string]interface{}{
         "name":    "GONK",
-        "version": "1.0.0",
+        "version": "1.1.0",
         "routes":  len(s.config.Routes),
         "features": map[string]bool{
-            "metrics":        s.config.Metrics.Enabled,
-            "rate_limiting":  s.config.RateLimit != nil && s.config.RateLimit.Enabled,
-            "authentication": s.config.Auth.JWT != nil || s.config.Auth.APIKey != nil,
-            "caching":        true,
+            "metrics":         s.config.Metrics.Enabled,
+            "rate_limiting":   s.config.RateLimit != nil && s.config.RateLimit.Enabled,
+            "authentication":  s.config.Auth.JWT != nil || s.config.Auth.APIKey != nil,
+            "authorization":   true,
+            "mtls":            s.config.Server.TLS != nil && s.config.Server.TLS.ClientCA != "",
+            "load_balancing":  true,
+            "caching":         true,
             "circuit_breaker": true,
         },
     }
     
-    // FIX: Usa json.Marshal invece di fmt.Sprintf
     jsonData, err := json.Marshal(info)
     if err != nil {
         w.Write([]byte(`{"error":"failed to marshal info"}`))
@@ -245,7 +305,15 @@ func (s *Server) Start(ctx context.Context) error {
     errChan := make(chan error, 1)
 
     go func() {
-        log.Printf("🚀 GONK listening on %s", s.config.Server.Listen)
+        log.Printf("🚀 GONK v1.1 listening on %s", s.config.Server.Listen)
+        
+        if s.config.Server.TLS != nil && s.config.Server.TLS.Enabled {
+            log.Printf("🔒 TLS enabled")
+            if s.config.Server.TLS.ClientCA != "" {
+                log.Printf("🔐 mTLS enabled (client auth: %s)", s.config.Server.TLS.ClientAuth)
+            }
+        }
+        
         log.Printf("📊 Available routes:")
         
         s.router.Walk(func(route *mux.Route, router *mux.Router, ancestors []*mux.Route) error {
@@ -257,7 +325,11 @@ func (s *Server) Start(ctx context.Context) error {
             return nil
         })
         
-        errChan <- s.httpServer.ListenAndServe()
+        if s.config.Server.TLS != nil && s.config.Server.TLS.Enabled {
+            errChan <- s.httpServer.ListenAndServeTLS(s.config.Server.TLS.CertFile, s.config.Server.TLS.KeyFile)
+        } else {
+            errChan <- s.httpServer.ListenAndServe()
+        }
     }()
 
     select {
