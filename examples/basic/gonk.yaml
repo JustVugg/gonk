@@ -1,0 +1,44 @@
+# GONK Basic Configuration
+# Simple setup for testing and development
+
+server:
+  listen: ":8080"
+  hot_reload: true
+
+logging:
+  level: info
+  format: text
+  output: stdout
+
+metrics:
+  enabled: true
+  path: /metrics
+
+auth:
+  jwt:
+    enabled: true
+    secret_key: "change-me-in-production"
+    header: "Authorization"
+    prefix: "Bearer"
+    expiry_check: true
+    validate_roles: true
+    validate_scopes: true
+
+routes:
+  - name: "api"
+    path: "/api/*"
+    methods: ["GET", "POST", "PUT", "DELETE"]
+    upstreams:
+      - url: "http://localhost:3000"
+        weight: 100
+    
+    auth:
+      type: "jwt"
+      required: true
+      allowed_roles: ["user", "admin"]
+      
+      permissions:
+        - role: "user"
+          methods: ["GET"]
+        - role: "admin"
+          methods: ["GET", "POST", "PUT", "DELETE"]
