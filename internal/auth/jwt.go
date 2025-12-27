@@ -1,6 +1,7 @@
 package auth
 
 import (
+    "context"
     "fmt"
     "net/http"
     "strings"
@@ -10,14 +11,23 @@ import (
     "github.com/JustVugg/gonk/internal/config"
 )
 
-func ValidateJWT(r *http.Request, cfg *config.JWTConfig) (bool, error) {
+// CustomClaims extends JWT claims with roles and scopes
+type CustomClaims struct {
+    jwt.RegisteredClaims
+    Roles  []string `json:"roles,omitempty"`
+    Scopes []string `json:"scopes,omitempty"`
+    UserID string   `json:"user_id,omitempty"`
+}
+
+// ValidateJWT validates JWT token and extracts authentication context
+func ValidateJWT(r *http.Request, cfg *config.JWTConfig) (*AuthContext, error) {
     tokenString := extractToken(r, cfg)
     if tokenString == "" {
-        return false, fmt.Errorf("no token provided")
+        return nil, fmt.Errorf("no token provided")
     }
 
-    // Usa RegisteredClaims per gestione automatica di exp
-    token, err := jwt.ParseWithClaims(tokenString, &jwt.RegisteredClaims{}, func(token *jwt.Token) (interface{}, error) {
+    // Parse token with custom claims
+    token, err := jwt.ParseWithClaims(tokenString, &CustomClaims{}, func(token *jwt.Token) (interface{}, error) {
         if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
             return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
         }
@@ -25,23 +35,50 @@ func ValidateJWT(r *http.Request, cfg *config.JWTConfig) (bool, error) {
     })
 
     if err != nil {
-        return false, err
+        return nil, fmt.Errorf("failed to parse token: %w", err)
     }
 
     if !token.Valid {
-        return false, fmt.Errorf("invalid token")
+        return nil, fmt.Errorf("invalid token")
     }
 
-    // Con RegisteredClaims, la validazione di exp è automatica se ExpiryCheck è true
-    if cfg.ExpiryCheck && token.Claims != nil {
-        if claims, ok := token.Claims.(*jwt.RegisteredClaims); ok {
-            if claims.ExpiresAt != nil && claims.ExpiresAt.Before(time.Now()) {
-                return false, fmt.Errorf("token expired")
-            }
+    claims, ok := token.Claims.(*CustomClaims)
+    if !ok {
+        return nil, fmt.Errorf("invalid token claims")
+    }
+
+    // Validate expiry if enabled
+    if cfg.ExpiryCheck && claims.ExpiresAt != nil {
+        if claims.ExpiresAt.Before(time.Now()) {
+            return nil, fmt.Errorf("token expired")
         }
     }
 
-    return true, nil
+    // Validate roles if configured
+    if cfg.ValidateRoles && len(claims.Roles) == 0 {
+        return nil, fmt.Errorf("token missing required roles")
+    }
+
+    // Validate scopes if configured
+    if cfg.ValidateScopes && len(claims.Scopes) == 0 {
+        return nil, fmt.Errorf("token missing required scopes")
+    }
+
+    // Build auth context
+    authCtx := &AuthContext{
+        Authenticated: true,
+        IdentityType:  "user",
+        UserID:        claims.UserID,
+        Roles:         claims.Roles,
+        Scopes:        claims.Scopes,
+    }
+
+    // If subject is available, use it as UserID if UserID is not set
+    if authCtx.UserID == "" && claims.Subject != "" {
+        authCtx.UserID = claims.Subject
+    }
+
+    return authCtx, nil
 }
 
 func extractToken(r *http.Request, cfg *config.JWTConfig) string {
@@ -59,6 +96,23 @@ func extractToken(r *http.Request, cfg *config.JWTConfig) string {
     }
 
     return header
-
 }
 
+// StoreAuthContext stores auth context in request context
+func StoreAuthContext(r *http.Request, authCtx *AuthContext) *http.Request {
+    ctx := context.WithValue(r.Context(), "auth_context", authCtx)
+    return r.WithContext(ctx)
+}
+
+// GetAuthContext retrieves auth context from request context
+func GetAuthContext(r *http.Request) *AuthContext {
+    if authCtxVal := r.Context().Value("auth_context"); authCtxVal != nil {
+        if authCtx, ok := authCtxVal.(*AuthContext); ok {
+            return authCtx
+        }
+    }
+    return &AuthContext{
+        Authenticated: false,
+        IdentityType:  "unknown",
+    }
+}
