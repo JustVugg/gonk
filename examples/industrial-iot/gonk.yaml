@@ -1,12 +1,16 @@
-# Industrial IoT Example Configuration
+# GONK Industrial IoT Configuration
+# Three-layer security: mTLS for devices, JWT for users, RBAC for permissions
+
 server:
   listen: ":8443"
   http2: true
+  hot_reload: true
+  
   tls:
     enabled: true
     cert_file: "/certs/server.crt"
     key_file: "/certs/server.key"
-    client_ca: "/certs/device-ca.crt"
+    client_ca: "/certs/ca.crt"
     client_auth: "request"
 
 logging:
@@ -22,20 +26,101 @@ auth:
   jwt:
     enabled: true
     secret_key: "${JWT_SECRET}"
+    header: "Authorization"
+    prefix: "Bearer"
+    expiry_check: true
     validate_roles: true
     validate_scopes: true
+  
+  api_key:
+    enabled: true
+    header: "X-API-Key"
+    keys:
+      - key: "${DEVICE_API_KEY}"
+        client_id: "plc-001"
+        roles: ["device"]
+        scopes: ["write:sensors"]
+
+rate_limit:
+  enabled: true
+  requests_per_second: 1000
+  burst: 2000
+  by: "ip"
 
 routes:
-  - name: "sensor-data"
+  # Device writes sensor data via mTLS or API Key
+  - name: "sensor-ingestion"
     path: "/api/sensors/*"
-    methods: ["POST", "GET"]
+    methods: ["POST"]
     upstreams:
       - url: "http://timeseries-db:8086"
+        weight: 100
     
     auth:
-      require_either: ["client_cert", "jwt"]
+      require_either: ["client_cert", "api_key"]
       permissions:
         - identity_type: "device"
           methods: ["POST"]
+          scopes: ["write:sensors"]
+    
+    rate_limit:
+      enabled: true
+      requests_per_second: 100
+      by: "client_id"
+
+  # Users read sensor data via JWT
+  - name: "sensor-read"
+    path: "/api/sensors/*"
+    methods: ["GET"]
+    upstreams:
+      - url: "http://timeseries-db:8086"
+        weight: 100
+    
+    auth:
+      type: "jwt"
+      required: true
+      permissions:
         - role: "technician"
           methods: ["GET"]
+          scopes: ["read:sensors"]
+        - role: "engineer"
+          methods: ["GET"]
+          scopes: ["read:sensors"]
+    
+    cache:
+      enabled: true
+      ttl: 30s
+      methods: ["GET"]
+
+  # Engineers control actuators
+  - name: "actuator-control"
+    path: "/api/actuators/*"
+    methods: ["POST", "PUT"]
+    upstreams:
+      - url: "http://plc-gateway:502"
+        weight: 100
+    
+    auth:
+      type: "jwt"
+      required: true
+      allowed_roles: ["engineer", "admin"]
+      required_scopes: ["write:actuators"]
+    
+    rate_limit:
+      enabled: true
+      requests_per_second: 10
+      burst: 20
+
+  # Admin panel with dual auth (JWT + mTLS)
+  - name: "admin"
+    path: "/admin/*"
+    methods: ["GET", "POST", "PUT", "DELETE"]
+    upstreams:
+      - url: "http://admin-panel:3000"
+        weight: 100
+    
+    auth:
+      type: "jwt"
+      required: true
+      require_client_cert: true
+      allowed_roles: ["admin"]
