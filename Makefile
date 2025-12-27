@@ -1,74 +1,88 @@
-.PHONY: help build test run clean docker lint fmt
+.PHONY: build build-server build-cli build-all clean test install docker-build help
 
-# Variables
-BINARY_NAME=gonk
-VERSION=$(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
-BUILD_TIME=$(shell date -u '+%Y-%m-%d_%H:%M:%S')
-GIT_COMMIT=$(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
-LDFLAGS=-ldflags "-w -s -X main.Version=${VERSION} -X main.BuildTime=${BUILD_TIME} -X main.GitCommit=${GIT_COMMIT}"
-DOCKER_IMAGE=gonk:${VERSION}
+VERSION := 1.1.0
+BUILD_TIME := $(shell date -u +"%Y-%m-%dT%H:%M:%SZ" 2>/dev/null || echo "unknown")
+GIT_COMMIT := $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
 
-help: ## Show this help
-	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-20s\033[0m %s\n", $$1, $$2}'
+LDFLAGS := -X main.Version=$(VERSION) -X main.BuildTime=$(BUILD_TIME) -X main.GitCommit=$(GIT_COMMIT)
 
-build: ## Build the binary
-	@echo "Building ${BINARY_NAME}..."
-	@go build ${LDFLAGS} -o bin/${BINARY_NAME} cmd/gonk/main.go
-	@echo "Build complete: bin/${BINARY_NAME}"
+# Default target
+all: build
 
-test: ## Run tests
-	@echo "Running tests..."
-	@go test -v -race -coverprofile=coverage.out ./...
-	@go tool cover -html=coverage.out -o coverage.html
+# Build both server and CLI
+build: build-server build-cli
 
-run: ## Run with example config
-	@go run cmd/gonk/main.go -config configs/gonk.example.yaml
+# Build server
+build-server:
+	@echo "Building GONK server..."
+	@mkdir -p bin
+	cd cmd/gonk && go build -ldflags "$(LDFLAGS)" -o ../../bin/gonk
 
-dev: ## Run in development mode with hot reload
-	@air -c .air.toml
+# Build CLI
+build-cli:
+	@echo "Building GONK CLI..."
+	@mkdir -p bin
+	cd cmd/gonk-cli && go build -ldflags "$(LDFLAGS)" -o ../../bin/gonk-cli
 
-clean: ## Clean build artifacts
+# Build for all platforms (GitHub releases)
+build-all:
+	@echo "Building for all platforms..."
+	@mkdir -p bin
+	# Linux AMD64
+	GOOS=linux GOARCH=amd64 go build -ldflags "$(LDFLAGS)" -o bin/gonk-linux-amd64 ./cmd/gonk
+	GOOS=linux GOARCH=amd64 go build -ldflags "$(LDFLAGS)" -o bin/gonk-cli-linux-amd64 ./cmd/gonk-cli
+	# macOS AMD64
+	GOOS=darwin GOARCH=amd64 go build -ldflags "$(LDFLAGS)" -o bin/gonk-darwin-amd64 ./cmd/gonk
+	GOOS=darwin GOARCH=amd64 go build -ldflags "$(LDFLAGS)" -o bin/gonk-cli-darwin-amd64 ./cmd/gonk-cli
+	# macOS ARM64 (M1/M2)
+	GOOS=darwin GOARCH=arm64 go build -ldflags "$(LDFLAGS)" -o bin/gonk-darwin-arm64 ./cmd/gonk
+	GOOS=darwin GOARCH=arm64 go build -ldflags "$(LDFLAGS)" -o bin/gonk-cli-darwin-arm64 ./cmd/gonk-cli
+	# Windows AMD64
+	GOOS=windows GOARCH=amd64 go build -ldflags "$(LDFLAGS)" -o bin/gonk-windows-amd64.exe ./cmd/gonk
+	GOOS=windows GOARCH=amd64 go build -ldflags "$(LDFLAGS)" -o bin/gonk-cli-windows-amd64.exe ./cmd/gonk-cli
+	# Linux ARM64 (Raspberry Pi 4, etc)
+	GOOS=linux GOARCH=arm64 go build -ldflags "$(LDFLAGS)" -o bin/gonk-linux-arm64 ./cmd/gonk
+	GOOS=linux GOARCH=arm64 go build -ldflags "$(LDFLAGS)" -o bin/gonk-cli-linux-arm64 ./cmd/gonk-cli
+	@echo "✅ All binaries built in bin/"
+	@ls -lh bin/ 2>/dev/null || dir bin
+
+# Clean build artifacts
+clean:
 	@echo "Cleaning..."
-	@rm -rf bin/ dist/ coverage.out coverage.html
+	@rm -rf bin/ 2>/dev/null || rmdir /s /q bin 2>nul || echo "Clean complete"
+	@go clean
 
-docker: ## Build Docker image
-	@echo "Building Docker image ${DOCKER_IMAGE}..."
-	@docker build -t ${DOCKER_IMAGE} -f deployments/docker/Dockerfile .
+# Run tests
+test:
+	@echo "Running tests..."
+	@go test -v ./...
 
-docker-run: docker ## Run Docker container
-	@docker run -p 8080:8080 -v $(PWD)/configs/gonk.example.yaml:/etc/gonk/gonk.yaml ${DOCKER_IMAGE}
+# Install locally (Linux/macOS only)
+install: build
+	@echo "Installing GONK..."
+	@cp bin/gonk /usr/local/bin/ || echo "Error: Use 'sudo make install' or install manually"
+	@cp bin/gonk-cli /usr/local/bin/ || echo "Error: Use 'sudo make install' or install manually"
+	@echo "✅ Installed to /usr/local/bin/"
 
-lint: ## Run linters
-	@echo "Running linters..."
-	@golangci-lint run
+# Docker build
+docker-build:
+	@echo "Building Docker image..."
+	@docker build -t gonk:$(VERSION) .
+	@echo "✅ Docker image built: gonk:$(VERSION)"
 
-fmt: ## Format code
-	@echo "Formatting code..."
-	@go fmt ./...
-
-install: build ## Install binary to $GOPATH/bin
-	@echo "Installing ${BINARY_NAME}..."
-	@cp bin/${BINARY_NAME} $(GOPATH)/bin/
-
-# Cross-compilation
-build-linux: ## Build for Linux
-	@GOOS=linux GOARCH=amd64 go build ${LDFLAGS} -o bin/${BINARY_NAME}-linux-amd64 cmd/gonk/main.go
-
-build-darwin: ## Build for macOS
-	@GOOS=darwin GOARCH=amd64 go build ${LDFLAGS} -o bin/${BINARY_NAME}-darwin-amd64 cmd/gonk/main.go
-
-build-windows: ## Build for Windows
-	@GOOS=windows GOARCH=amd64 go build ${LDFLAGS} -o bin/${BINARY_NAME}-windows-amd64.exe cmd/gonk/main.go
-
-build-arm: ## Build for ARM (Raspberry Pi)
-	@GOOS=linux GOARCH=arm GOARM=7 go build ${LDFLAGS} -o bin/${BINARY_NAME}-linux-arm cmd/gonk/main.go
-
-build-all: build-linux build-darwin build-windows build-arm ## Build for all platforms
-
-release: build-all ## Create release artifacts
-	@mkdir -p dist
-	@tar czf dist/${BINARY_NAME}-${VERSION}-linux-amd64.tar.gz -C bin ${BINARY_NAME}-linux-amd64
-	@tar czf dist/${BINARY_NAME}-${VERSION}-darwin-amd64.tar.gz -C bin ${BINARY_NAME}-darwin-amd64
-	@zip dist/${BINARY_NAME}-${VERSION}-windows-amd64.zip bin/${BINARY_NAME}-windows-amd64.exe
-	@tar czf dist/${BINARY_NAME}-${VERSION}-linux-arm.tar.gz -C bin ${BINARY_NAME}-linux-arm
-	@echo "Release artifacts created in dist/"
+# Show help
+help:
+	@echo "GONK v$(VERSION) Makefile"
+	@echo ""
+	@echo "Usage:"
+	@echo "  make build        - Build both server and CLI"
+	@echo "  make build-server - Build server only"
+	@echo "  make build-cli    - Build CLI only"
+	@echo "  make build-all    - Build for all platforms (releases)"
+	@echo "  make test         - Run tests"
+	@echo "  make clean        - Clean build artifacts"
+	@echo "  make install      - Install to /usr/local/bin (Linux/macOS)"
+	@echo "  make docker-build - Build Docker image"
+	@echo "  make help         - Show this help"
+	@echo ""
+	@echo "Note: On Windows, use Git Bash or WSL to run make commands"
