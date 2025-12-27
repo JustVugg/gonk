@@ -12,8 +12,26 @@ import (
 )
 
 func (h *Handler) handleWebSocket(w http.ResponseWriter, r *http.Request) {
-    // Parse upstream WebSocket URL
-    upstreamURL, _ := url.Parse(h.route.Upstream)
+    // Get upstream URL (from load balancer or single upstream)
+    var upstreamURLStr string
+    if h.loadBalancer != nil {
+        clientIP := r.RemoteAddr
+        upstreamURL, err := h.loadBalancer.GetNextUpstream(clientIP)
+        if err != nil {
+            log.Printf("WebSocket load balancer error: %v", err)
+            http.Error(w, "Service Unavailable", http.StatusServiceUnavailable)
+            return
+        }
+        upstreamURLStr = upstreamURL.String()
+        defer h.loadBalancer.ReleaseConnection(upstreamURL)
+    } else if len(h.route.Upstreams) > 0 {
+        upstreamURLStr = h.route.Upstreams[0].URL
+    } else {
+        http.Error(w, "No upstream configured", http.StatusInternalServerError)
+        return
+    }
+    
+    upstreamURL, _ := url.Parse(upstreamURLStr)
     
     targetPath := r.URL.Path
     if h.route.StripPath {

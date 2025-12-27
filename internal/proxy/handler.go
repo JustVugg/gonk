@@ -12,22 +12,19 @@ import (
     
     "github.com/gorilla/websocket"
     
-    "gonk-local/internal/config"
+    "github.com/JustVugg/gonk/internal/config"
+    "github.com/JustVugg/gonk/internal/loadbalancer"
 )
 
 type Handler struct {
-    route      *config.Route
-    httpProxy  *httputil.ReverseProxy
-    wsUpgrader websocket.Upgrader
-    grpcProxy  *gRPCProxy
+    route        *config.Route
+    httpProxy    *httputil.ReverseProxy
+    wsUpgrader   websocket.Upgrader
+    grpcProxy    *gRPCProxy
+    loadBalancer *loadbalancer.LoadBalancer
 }
 
 func NewHandler(route *config.Route) (*Handler, error) {
-    upstreamURL, err := url.Parse(route.Upstream)
-    if err != nil {
-        return nil, fmt.Errorf("invalid upstream URL: %w", err)
-    }
-
     h := &Handler{
         route: route,
         wsUpgrader: websocket.Upgrader{
@@ -38,24 +35,38 @@ func NewHandler(route *config.Route) (*Handler, error) {
         },
     }
 
-    switch route.Protocol {
-    case "ws", "wss":
-        // WebSocket handled in ServeHTTP
-    case "grpc":
-        // Create gRPC proxy with director
-        director := func(req *http.Request) {
-            // Apply custom headers
-            for k, v := range route.Headers {
-                req.Header.Set(k, v)
-            }
-        }
-        
-        h.grpcProxy, err = newGRPCProxy(route.Upstream, director)
+    // Initialize load balancer if multiple upstreams
+    if len(route.Upstreams) > 1 || route.LoadBalancing != nil {
+        lb, err := loadbalancer.NewLoadBalancer(route.Upstreams, route.LoadBalancing)
         if err != nil {
-            return nil, fmt.Errorf("failed to create gRPC proxy: %w", err)
+            return nil, fmt.Errorf("failed to create load balancer: %w", err)
         }
-    default: // http, https
-        h.httpProxy = h.createHTTPProxy(upstreamURL)
+        h.loadBalancer = lb
+    } else if len(route.Upstreams) == 1 {
+        // Single upstream - create simple HTTP proxy
+        upstreamURL, err := url.Parse(route.Upstreams[0].URL)
+        if err != nil {
+            return nil, fmt.Errorf("invalid upstream URL: %w", err)
+        }
+
+        switch route.Protocol {
+        case "grpc":
+            director := func(req *http.Request) {
+                for k, v := range route.Headers {
+                    req.Header.Set(k, v)
+                }
+            }
+            
+            h.grpcProxy, err = newGRPCProxy(route.Upstreams[0].URL, director)
+            if err != nil {
+                return nil, fmt.Errorf("failed to create gRPC proxy: %w", err)
+            }
+            
+        default:
+            h.httpProxy = h.createHTTPProxy(upstreamURL)
+        }
+    } else {
+        return nil, fmt.Errorf("no upstreams configured")
     }
 
     return h, nil
@@ -64,6 +75,9 @@ func NewHandler(route *config.Route) (*Handler, error) {
 func (h *Handler) Close() error {
     if h.grpcProxy != nil {
         return h.grpcProxy.Close()
+    }
+    if h.loadBalancer != nil {
+        h.loadBalancer.Stop()
     }
     return nil
 }
@@ -83,8 +97,50 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
         return
     }
 
-    // Handle regular HTTP
+    // Handle load balanced requests
+    if h.loadBalancer != nil {
+        h.handleLoadBalanced(w, r)
+        return
+    }
+
+    // Handle single upstream
     h.httpProxy.ServeHTTP(w, r)
+}
+
+func (h *Handler) handleLoadBalanced(w http.ResponseWriter, r *http.Request) {
+    // Get client IP for IP hash strategy
+    clientIP, _, _ := net.SplitHostPort(r.RemoteAddr)
+    
+    // Get next upstream
+    upstreamURL, err := h.loadBalancer.GetNextUpstream(clientIP)
+    if err != nil {
+        log.Printf("Load balancer error: %v", err)
+        http.Error(w, "Service Unavailable", http.StatusServiceUnavailable)
+        return
+    }
+
+    // Create proxy for this specific upstream
+    proxy := h.createHTTPProxy(upstreamURL)
+    
+    // Track connection
+    defer h.loadBalancer.ReleaseConnection(upstreamURL)
+    
+    // Wrap response writer to track success/failure
+    wrapped := &loadBalancerResponseWriter{
+        ResponseWriter: w,
+        statusCode:     200,
+        upstreamURL:    upstreamURL,
+        loadBalancer:   h.loadBalancer,
+    }
+    
+    proxy.ServeHTTP(wrapped, r)
+    
+    // Record result
+    if wrapped.statusCode >= 500 {
+        h.loadBalancer.RecordFailure(upstreamURL)
+    } else {
+        h.loadBalancer.RecordSuccess(upstreamURL)
+    }
 }
 
 func (h *Handler) createHTTPProxy(target *url.URL) *httputil.ReverseProxy {
@@ -125,7 +181,6 @@ func (h *Handler) createHTTPProxy(target *url.URL) *httputil.ReverseProxy {
     }
 
     proxy.ModifyResponse = func(resp *http.Response) error {
-        // Add response headers if needed
         resp.Header.Set("X-Proxy", "gonk")
         return nil
     }
@@ -138,4 +193,16 @@ func (h *Handler) createHTTPProxy(target *url.URL) *httputil.ReverseProxy {
     }
 
     return proxy
+}
+
+type loadBalancerResponseWriter struct {
+    http.ResponseWriter
+    statusCode   int
+    upstreamURL  *url.URL
+    loadBalancer *loadbalancer.LoadBalancer
+}
+
+func (w *loadBalancerResponseWriter) WriteHeader(code int) {
+    w.statusCode = code
+    w.ResponseWriter.WriteHeader(code)
 }
