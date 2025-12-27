@@ -1,0 +1,41 @@
+# Industrial IoT Example Configuration
+server:
+  listen: ":8443"
+  http2: true
+  tls:
+    enabled: true
+    cert_file: "/certs/server.crt"
+    key_file: "/certs/server.key"
+    client_ca: "/certs/device-ca.crt"
+    client_auth: "request"
+
+logging:
+  level: info
+  format: json
+  output: /var/log/gonk/gonk.log
+
+metrics:
+  enabled: true
+  path: /metrics
+
+auth:
+  jwt:
+    enabled: true
+    secret_key: "${JWT_SECRET}"
+    validate_roles: true
+    validate_scopes: true
+
+routes:
+  - name: "sensor-data"
+    path: "/api/sensors/*"
+    methods: ["POST", "GET"]
+    upstreams:
+      - url: "http://timeseries-db:8086"
+    
+    auth:
+      require_either: ["client_cert", "jwt"]
+      permissions:
+        - identity_type: "device"
+          methods: ["POST"]
+        - role: "technician"
+          methods: ["GET"]
