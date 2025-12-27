@@ -14,7 +14,7 @@ import (
 )
 
 var (
-    Version   = "dev"
+    Version   = "1.1.0"
     BuildTime = "unknown"
     GitCommit = "unknown"
 )
@@ -28,10 +28,7 @@ func main() {
     flag.Parse()
 
     if *version {
-        fmt.Printf("GONK API Gateway\n")
-        fmt.Printf("Version:    %s\n", Version)
-        fmt.Printf("Build Time: %s\n", BuildTime)
-        fmt.Printf("Git Commit: %s\n", GitCommit)
+        printVersion()
         os.Exit(0)
     }
 
@@ -48,6 +45,8 @@ func main() {
 
     // Setup logging
     setupLogging(cfg.Logging)
+
+    printBanner()
 
     // Create and start server
     srv := server.New(cfg)
@@ -71,6 +70,40 @@ func main() {
     }
     
     log.Println("👋 GONK shutdown complete")
+}
+
+func printVersion() {
+    fmt.Printf("GONK API Gateway v%s\n", Version)
+    fmt.Printf("Build Time: %s\n", BuildTime)
+    fmt.Printf("Git Commit: %s\n", GitCommit)
+    fmt.Println("\nFeatures:")
+    fmt.Println("  ✓ Authorization (RBAC + Scopes)")
+    fmt.Println("  ✓ mTLS Support")
+    fmt.Println("  ✓ Load Balancing")
+    fmt.Println("  ✓ JWT & API Key Auth")
+    fmt.Println("  ✓ Circuit Breaker")
+    fmt.Println("  ✓ Rate Limiting")
+    fmt.Println("  ✓ Caching")
+    fmt.Println("  ✓ WebSocket & gRPC Proxy")
+}
+
+func printBanner() {
+    banner := `
+  ╔═══════════════════════════════════════╗
+  ║                                       ║
+  ║   ██████╗  ██████╗ ███╗   ██╗██╗  ██╗ ║
+  ║  ██╔════╝ ██╔═══██╗████╗  ██║██║ ██╔╝ ║
+  ║  ██║  ███╗██║   ██║██╔██╗ ██║█████╔╝  ║
+  ║  ██║   ██║██║   ██║██║╚██╗██║██╔═██╗  ║
+  ║  ╚██████╔╝╚██████╔╝██║ ╚████║██║  ██╗ ║
+  ║   ╚═════╝  ╚═════╝ ╚═╝  ╚═══╝╚═╝  ╚═╝ ║
+  ║                                       ║
+  ║   Edge-Native API Gateway v1.1        ║
+  ║   Authorization • mTLS • Load Balance ║
+  ║                                       ║
+  ╚═══════════════════════════════════════╝
+`
+    fmt.Println(banner)
 }
 
 func setupLogging(cfg config.LoggingConfig) {
