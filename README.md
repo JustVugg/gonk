@@ -1,5 +1,5 @@
 <div align="center">
-<img src="gonk.png" alt="GONK Logo" width="400">
+<img src="gonk_logo.png" alt="GONK Logo" width="400">
 <br><br>
 </div>
 
@@ -377,3 +377,4 @@ Apache License 2.0
 ## Acknowledgments
 
 This version was driven by feedback from industrial IoT users who needed lightweight authorization capabilities. Thanks to the Go ecosystem libraries that make this possible: Gorilla Mux, JWT-Go, Prometheus client, and others.
+
