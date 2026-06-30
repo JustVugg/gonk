@@ -1,6 +1,9 @@
 ## Configuration Examples
 
-The `examples/` directory contains three complete configurations:
+The `examples/` directory contains runnable demos and complete configurations:
+
+**Quickstart Demo** (`examples/quickstart/`)
+Runs GONK, two backend services, and Prometheus with Docker Compose. This is the fastest way to try the project end to end.
 
 **Basic Setup** (`examples/basic/gonk.yaml`)  
 Simple configuration for development and testing. Uses JWT authentication with role-based permissions.
@@ -14,6 +17,11 @@ Load balancing across multiple service instances with health checks, circuit bre
 Run any example:
 ```bash
 ./bin/gonk -config examples/industrial-iot/gonk.yaml
+```
+
+Run the quickstart demo:
+```bash
+make demo-up
 ```
 
 Validate before deploying:

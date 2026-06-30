@@ -1,0 +1,16 @@
+FROM golang:1.21-alpine AS builder
+
+WORKDIR /app
+
+COPY backend.go .
+RUN go build -buildvcs=false -o /demo-backend backend.go
+
+FROM alpine:latest
+
+RUN apk add --no-cache ca-certificates
+
+COPY --from=builder /demo-backend /usr/local/bin/demo-backend
+
+EXPOSE 3000
+
+ENTRYPOINT ["demo-backend"]

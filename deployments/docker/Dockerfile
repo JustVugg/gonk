@@ -18,6 +18,7 @@ FROM alpine:latest
 RUN apk add --no-cache ca-certificates
 
 COPY --from=builder /app/bin/gonk /usr/local/bin/gonk
+COPY --from=builder /app/bin/gonk-cli /usr/local/bin/gonk-cli
 
 EXPOSE 8080
 

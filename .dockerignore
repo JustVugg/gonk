@@ -1,0 +1,13 @@
+.git
+.github
+.cache
+bin
+dist
+logs
+*.log
+*.test
+*.out
+coverage.txt
+coverage.html
+gonk.local.yaml
+config.local.yaml

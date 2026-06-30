@@ -1,0 +1,41 @@
+services:
+  gonk:
+    build:
+      context: ../..
+      dockerfile: deployments/docker/Dockerfile
+    environment:
+      JWT_SECRET: demo-secret-change-me
+    command: ["-config", "/etc/gonk/gonk.yaml"]
+    volumes:
+      - ./gonk.yaml:/etc/gonk/gonk.yaml:ro
+    ports:
+      - "8080:8080"
+    depends_on:
+      - backend-a
+      - backend-b
+
+  backend-a:
+    build:
+      context: ../..
+      dockerfile: deployments/docker/Dockerfile.backend
+    environment:
+      BACKEND_NAME: backend-a
+
+  backend-b:
+    build:
+      context: ../..
+      dockerfile: deployments/docker/Dockerfile.backend
+    environment:
+      BACKEND_NAME: backend-b
+
+  prometheus:
+    image: prom/prometheus:latest
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    ports:
+      - "9090:9090"
+    depends_on:
+      - gonk

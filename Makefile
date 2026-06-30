@@ -1,8 +1,9 @@
-.PHONY: build build-server build-cli build-all clean test install docker-build help
+.PHONY: build build-server build-cli build-all clean test install docker-build demo-up demo-down demo-token help
 
 VERSION := 1.1.0
 BUILD_TIME := $(shell date -u +"%Y-%m-%dT%H:%M:%SZ" 2>/dev/null || echo "unknown")
 GIT_COMMIT := $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
+DEMO_COMPOSE := examples/quickstart/docker-compose.yml
 
 LDFLAGS := -X main.Version=$(VERSION) -X main.BuildTime=$(BUILD_TIME) -X main.GitCommit=$(GIT_COMMIT)
 
@@ -16,33 +17,33 @@ build: build-server build-cli
 build-server:
 	@echo "Building GONK server..."
 	@mkdir -p bin
-	cd cmd/gonk && go build -ldflags "$(LDFLAGS)" -o ../../bin/gonk
+	cd cmd/gonk && go build -buildvcs=false -ldflags "$(LDFLAGS)" -o ../../bin/gonk
 
 # Build CLI
 build-cli:
 	@echo "Building GONK CLI..."
 	@mkdir -p bin
-	cd cmd/gonk-cli && go build -ldflags "$(LDFLAGS)" -o ../../bin/gonk-cli
+	cd cmd/gonk-cli && go build -buildvcs=false -ldflags "$(LDFLAGS)" -o ../../bin/gonk-cli
 
 # Build for all platforms (GitHub releases)
 build-all:
 	@echo "Building for all platforms..."
 	@mkdir -p bin
 	# Linux AMD64
-	GOOS=linux GOARCH=amd64 go build -ldflags "$(LDFLAGS)" -o bin/gonk-linux-amd64 ./cmd/gonk
-	GOOS=linux GOARCH=amd64 go build -ldflags "$(LDFLAGS)" -o bin/gonk-cli-linux-amd64 ./cmd/gonk-cli
+	GOOS=linux GOARCH=amd64 go build -buildvcs=false -ldflags "$(LDFLAGS)" -o bin/gonk-linux-amd64 ./cmd/gonk
+	GOOS=linux GOARCH=amd64 go build -buildvcs=false -ldflags "$(LDFLAGS)" -o bin/gonk-cli-linux-amd64 ./cmd/gonk-cli
 	# macOS AMD64
-	GOOS=darwin GOARCH=amd64 go build -ldflags "$(LDFLAGS)" -o bin/gonk-darwin-amd64 ./cmd/gonk
-	GOOS=darwin GOARCH=amd64 go build -ldflags "$(LDFLAGS)" -o bin/gonk-cli-darwin-amd64 ./cmd/gonk-cli
+	GOOS=darwin GOARCH=amd64 go build -buildvcs=false -ldflags "$(LDFLAGS)" -o bin/gonk-darwin-amd64 ./cmd/gonk
+	GOOS=darwin GOARCH=amd64 go build -buildvcs=false -ldflags "$(LDFLAGS)" -o bin/gonk-cli-darwin-amd64 ./cmd/gonk-cli
 	# macOS ARM64 (M1/M2)
-	GOOS=darwin GOARCH=arm64 go build -ldflags "$(LDFLAGS)" -o bin/gonk-darwin-arm64 ./cmd/gonk
-	GOOS=darwin GOARCH=arm64 go build -ldflags "$(LDFLAGS)" -o bin/gonk-cli-darwin-arm64 ./cmd/gonk-cli
+	GOOS=darwin GOARCH=arm64 go build -buildvcs=false -ldflags "$(LDFLAGS)" -o bin/gonk-darwin-arm64 ./cmd/gonk
+	GOOS=darwin GOARCH=arm64 go build -buildvcs=false -ldflags "$(LDFLAGS)" -o bin/gonk-cli-darwin-arm64 ./cmd/gonk-cli
 	# Windows AMD64
-	GOOS=windows GOARCH=amd64 go build -ldflags "$(LDFLAGS)" -o bin/gonk-windows-amd64.exe ./cmd/gonk
-	GOOS=windows GOARCH=amd64 go build -ldflags "$(LDFLAGS)" -o bin/gonk-cli-windows-amd64.exe ./cmd/gonk-cli
+	GOOS=windows GOARCH=amd64 go build -buildvcs=false -ldflags "$(LDFLAGS)" -o bin/gonk-windows-amd64.exe ./cmd/gonk
+	GOOS=windows GOARCH=amd64 go build -buildvcs=false -ldflags "$(LDFLAGS)" -o bin/gonk-cli-windows-amd64.exe ./cmd/gonk-cli
 	# Linux ARM64 (Raspberry Pi 4, etc)
-	GOOS=linux GOARCH=arm64 go build -ldflags "$(LDFLAGS)" -o bin/gonk-linux-arm64 ./cmd/gonk
-	GOOS=linux GOARCH=arm64 go build -ldflags "$(LDFLAGS)" -o bin/gonk-cli-linux-arm64 ./cmd/gonk-cli
+	GOOS=linux GOARCH=arm64 go build -buildvcs=false -ldflags "$(LDFLAGS)" -o bin/gonk-linux-arm64 ./cmd/gonk
+	GOOS=linux GOARCH=arm64 go build -buildvcs=false -ldflags "$(LDFLAGS)" -o bin/gonk-cli-linux-arm64 ./cmd/gonk-cli
 	@echo "✅ All binaries built in bin/"
 	@ls -lh bin/ 2>/dev/null || dir bin
 
@@ -67,8 +68,18 @@ install: build
 # Docker build
 docker-build:
 	@echo "Building Docker image..."
-	@docker build -t gonk:$(VERSION) .
+	@docker build -f deployments/docker/Dockerfile -t gonk:$(VERSION) .
 	@echo "✅ Docker image built: gonk:$(VERSION)"
+
+# Quickstart demo
+demo-up:
+	@docker compose -f $(DEMO_COMPOSE) up --build
+
+demo-down:
+	@docker compose -f $(DEMO_COMPOSE) down --remove-orphans
+
+demo-token:
+	@docker compose -f $(DEMO_COMPOSE) run --rm --entrypoint gonk-cli gonk auth jwt generate --role user --scopes read:api --user-id demo-user --expiry 24h
 
 # Show help
 help:
@@ -83,6 +94,9 @@ help:
 	@echo "  make clean        - Clean build artifacts"
 	@echo "  make install      - Install to /usr/local/bin (Linux/macOS)"
 	@echo "  make docker-build - Build Docker image"
+	@echo "  make demo-up      - Start the Docker Compose quickstart"
+	@echo "  make demo-token   - Generate a JWT for the quickstart"
+	@echo "  make demo-down    - Stop the Docker Compose quickstart"
 	@echo "  make help         - Show this help"
 	@echo ""
 	@echo "Note: On Windows, use Git Bash or WSL to run make commands"

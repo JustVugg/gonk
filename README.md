@@ -3,7 +3,27 @@
 <br><br>
 </div>
 
-GONK is a lightweight API gateway written in Go for edge computing, IoT, and air-gapped environments.
+GONK is an edge-native API gateway written in Go for industrial, IoT, robotics, and air-gapped environments.
+
+It is designed for teams that need secure service exposure near devices without running a heavy control plane, a database dependency, or a full cloud gateway stack.
+
+**Status:** community preview. The core gateway, auth, routing, load balancing, and observability features are in place; production hardening, benchmark coverage, and operator tooling are the next priority.
+
+## Why GONK
+
+- Single Go binary plus YAML configuration.
+- Security primitives close to the edge: JWT, API keys, mTLS, RBAC, scopes, and certificate-to-role mapping.
+- Works in constrained or disconnected networks where Kubernetes, SaaS control planes, and central databases are not always available.
+- Built for operational workflows: templates, validation, hot reload, health endpoints, Prometheus metrics, and a companion CLI.
+
+## Best-Fit Use Cases
+
+- Industrial gateways exposing PLC, sensor, historian, or HMI services.
+- Robotics and field-device deployments with limited compute and intermittent connectivity.
+- Air-gapped environments that need local auth, routing, and traffic controls.
+- Edge microservice stacks that need gateway features without a large platform footprint.
+
+For product positioning and startup strategy, see [docs/STARTUP_BRIEF.md](docs/STARTUP_BRIEF.md).
 
 ## What's New in v1.1
 
@@ -40,6 +60,21 @@ make build
 ```
 
 ## Quick Start
+
+Run the full Docker demo:
+
+```bash
+make demo-up
+make demo-token
+```
+
+Then call the protected route with the generated token:
+
+```bash
+curl -H "Authorization: Bearer <token>" http://localhost:8080/api/ping
+```
+
+See [examples/quickstart](examples/quickstart/) for the full demo with two upstream services and Prometheus.
 
 Generate a basic configuration:
 
@@ -306,22 +341,21 @@ routes:
       requests_per_second: 10
 ```
 
-## Comparison with Other Gateways
+## Design Tradeoffs
 
-| Feature            | GONK v1.1    | Kong          | NGINX         | Traefik       |
-|--------------------|--------------|---------------|---------------|---------------|
-| Authorization      | Built-in     | Plugin        | No            | Limited       |
-| mTLS               | Built-in     | Enterprise    | Complex setup | Yes           |
-| Load Balancing     | Built-in     | Yes           | Yes           | Yes           |
-| Binary Size        | Under 20MB   | Over 100MB    | Around 20MB   | Around 70MB   |
-| Memory (idle)      | 12MB         | 512MB         | 32MB          | 40MB          |
-| Dependencies       | None         | PostgreSQL    | None          | None          |
-| Edge/IoT Ready     | Yes          | No            | Yes           | Yes           |
-| CLI Tool           | Full         | Limited       | No            | Limited       |
+| Need | GONK fit |
+|------|----------|
+| Run a secure gateway on an edge node with minimal dependencies | Strong fit |
+| Combine JWT, API keys, mTLS, RBAC, scopes, and local policy in one config | Strong fit |
+| Operate in disconnected or air-gapped environments | Strong fit |
+| Manage a large multi-region cloud API platform with a hosted control plane | Not the current target |
+| Require mature enterprise analytics, monetization, and developer portal features today | Not the current target |
 
-GONK is optimized for environments where you need authorization + mTLS + load balancing in a single lightweight package, particularly edge and IoT deployments.
+The product wedge is intentionally narrow: secure, lightweight gateway infrastructure for edge networks where generic cloud API gateways are too heavy or operationally awkward.
 
 ## Building
+
+Prerequisites: Go 1.21+ and Make. Docker is optional for image builds. Docker Compose v2 is required for the quickstart demo.
 
 ```bash
 # Both server and CLI
@@ -341,6 +375,11 @@ make clean
 
 # Run tests
 make test
+
+# Full Docker Compose demo
+make demo-up
+make demo-token
+make demo-down
 ```
 
 On Windows without make, use Go directly:
@@ -366,7 +405,8 @@ gonk/
 │   ├── cache/         # Response caching
 │   ├── metrics/       # Prometheus metrics
 │   └── middleware/    # Rate limiting, logging, etc
-├── gonk.example.yaml  # Example configuration
+├── configs/           # Example configuration
+├── docs/              # Product and strategy docs
 └── Makefile
 ```
 

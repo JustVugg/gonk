@@ -5,7 +5,8 @@ dist/
 *.dll
 *.so
 *.dylib
-gonk
+/gonk
+.cache/
 
 # Test binary, built with `go test -c`
 *.test
