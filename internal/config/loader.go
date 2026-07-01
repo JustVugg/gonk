@@ -58,6 +58,10 @@ func setDefaults(cfg *Config) {
 		cfg.Server.Listen = ":8080"
 	}
 
+	if cfg.Runtime.Environment == "" {
+		cfg.Runtime.Environment = "development"
+	}
+
 	if cfg.Server.ReadTimeout == 0 {
 		cfg.Server.ReadTimeout = 30 * time.Second
 	}
@@ -202,11 +206,19 @@ func validate(cfg *Config) error {
 		return fmt.Errorf("no routes defined")
 	}
 
+	if err := validateRuntime(cfg); err != nil {
+		return err
+	}
+
 	if err := validateAdmin(cfg.Admin); err != nil {
 		return err
 	}
 
 	if err := validateRateLimit("global rate_limit", cfg.RateLimit); err != nil {
+		return err
+	}
+
+	if err := validateAuth(cfg.Auth); err != nil {
 		return err
 	}
 
@@ -321,6 +333,55 @@ func validate(cfg *Config) error {
 	return nil
 }
 
+func validateAuth(cfg AuthConfig) error {
+	if cfg.JWT != nil && cfg.JWT.Enabled {
+		if strings.TrimSpace(cfg.JWT.SecretKey) == "" {
+			return fmt.Errorf("auth.jwt.enabled is true but secret_key is empty")
+		}
+	}
+
+	if cfg.APIKey != nil && cfg.APIKey.Enabled {
+		if cfg.APIKey.Header == "" {
+			return fmt.Errorf("auth.api_key.enabled is true but header is empty")
+		}
+		if len(cfg.APIKey.Keys) == 0 {
+			return fmt.Errorf("auth.api_key.enabled is true but no keys are configured")
+		}
+		for i, key := range cfg.APIKey.Keys {
+			if strings.TrimSpace(key.Key) == "" {
+				return fmt.Errorf("auth.api_key.keys[%d].key is empty", i)
+			}
+			if strings.TrimSpace(key.ClientID) == "" {
+				return fmt.Errorf("auth.api_key.keys[%d].client_id is empty", i)
+			}
+		}
+	}
+
+	return nil
+}
+
+func validateRuntime(cfg *Config) error {
+	validEnvironments := map[string]bool{
+		"development": true,
+		"test":        true,
+		"staging":     true,
+		"production":  true,
+	}
+	if !validEnvironments[cfg.Runtime.Environment] {
+		return fmt.Errorf("invalid runtime.environment value: %s", cfg.Runtime.Environment)
+	}
+
+	if cfg.Runtime.Environment != "production" || cfg.Runtime.AllowDemoSecrets {
+		return nil
+	}
+
+	for _, secret := range demoSecretFindings(cfg) {
+		return fmt.Errorf("production config contains demo secret: %s (set a real secret or runtime.allow_demo_secrets for demos only)", secret)
+	}
+
+	return nil
+}
+
 func validateAdmin(cfg AdminConfig) error {
 	if cfg.RequireAuth && cfg.Token == "" {
 		return fmt.Errorf("admin.require_auth is true but admin.token is not specified")
@@ -336,6 +397,50 @@ func validateAdmin(cfg AdminConfig) error {
 	}
 
 	return nil
+}
+
+func demoSecretFindings(cfg *Config) []string {
+	var findings []string
+
+	if isDemoSecret(cfg.Admin.Token) {
+		findings = append(findings, "admin.token")
+	}
+	if cfg.Auth.JWT != nil && isDemoSecret(cfg.Auth.JWT.SecretKey) {
+		findings = append(findings, "auth.jwt.secret_key")
+	}
+	if cfg.Auth.APIKey != nil {
+		for i, key := range cfg.Auth.APIKey.Keys {
+			if isDemoSecret(key.Key) {
+				findings = append(findings, fmt.Sprintf("auth.api_key.keys[%d].key", i))
+			}
+		}
+	}
+
+	return findings
+}
+
+func isDemoSecret(value string) bool {
+	normalized := strings.TrimSpace(strings.ToLower(value))
+	if normalized == "" {
+		return false
+	}
+
+	demoValues := map[string]bool{
+		"change-me":                true,
+		"change-me-in-production":  true,
+		"change-me-admin-token":    true,
+		"demo-secret-change-me":    true,
+		"dev-key-123":              true,
+		"prod-key-456":             true,
+		"your-device-api-key-here": true,
+	}
+	if demoValues[normalized] {
+		return true
+	}
+
+	return strings.Contains(normalized, "change-me") ||
+		strings.Contains(normalized, "demo-secret") ||
+		strings.Contains(normalized, "your-") && strings.Contains(normalized, "-here")
 }
 
 func validateRateLimit(label string, cfg *RateLimitConfig) error {

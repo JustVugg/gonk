@@ -14,6 +14,10 @@ server:
     allowed_headers: ["*"]
     max_age: 3600
 
+runtime:
+  environment: production
+  allow_demo_secrets: true
+
 # Logging
 logging:
   level: info
@@ -26,6 +30,10 @@ admin:
   header: "X-Gonk-Admin-Token"
   token: "${GONK_ADMIN_TOKEN:-change-me-admin-token}"
   allowed_cidrs: ["127.0.0.1/32", "10.0.0.0/8"]
+
+# Audit logging
+audit:
+  enabled: true
 
 # Metrics (Prometheus)
 metrics:

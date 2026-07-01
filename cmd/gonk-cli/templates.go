@@ -5,6 +5,9 @@ server:
   listen: ":8080"
   hot_reload: true
 
+runtime:
+  environment: development
+
 logging:
   level: info
   format: text
@@ -13,6 +16,9 @@ logging:
 admin:
   require_auth: false
   header: "X-Gonk-Admin-Token"
+
+audit:
+  enabled: false
 
 metrics:
   enabled: true
@@ -56,6 +62,10 @@ server:
     client_ca: "/certs/ca.crt"
     client_auth: "request"  # request or require
 
+runtime:
+  environment: production
+  allow_demo_secrets: true
+
 logging:
   level: info
   format: json
@@ -66,6 +76,9 @@ admin:
   header: "X-Gonk-Admin-Token"
   token: "${GONK_ADMIN_TOKEN:-change-me-admin-token}"
   allowed_cidrs: ["127.0.0.1/32", "10.0.0.0/8"]
+
+audit:
+  enabled: true
 
 metrics:
   enabled: true
@@ -189,6 +202,10 @@ server:
     allowed_headers: ["*"]
     max_age: 3600
 
+runtime:
+  environment: production
+  allow_demo_secrets: true
+
 logging:
   level: info
   format: json
@@ -199,6 +216,9 @@ admin:
   header: "X-Gonk-Admin-Token"
   token: "${GONK_ADMIN_TOKEN:-change-me-admin-token}"
   allowed_cidrs: ["127.0.0.1/32", "10.0.0.0/8"]
+
+audit:
+  enabled: true
 
 metrics:
   enabled: true

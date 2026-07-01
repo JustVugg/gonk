@@ -36,6 +36,7 @@ type LoadBalancer struct {
 	healthInterval time.Duration
 	healthTimeout  time.Duration
 	stopCh         chan struct{}
+	stopOnce       sync.Once
 	mutex          sync.RWMutex
 }
 
@@ -373,7 +374,9 @@ func (lb *LoadBalancer) markUnhealthy(upstream *UpstreamState) {
 
 // Stop stops the load balancer
 func (lb *LoadBalancer) Stop() {
-	close(lb.stopCh)
+	lb.stopOnce.Do(func() {
+		close(lb.stopCh)
+	})
 }
 
 // GetStats returns load balancer statistics

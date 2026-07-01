@@ -1,6 +1,6 @@
-.PHONY: build build-server build-cli build-all clean test test-coverage test-race install docker-build demo-up demo-down demo-token help
+.PHONY: build build-server build-cli build-all clean test test-coverage test-race install docker-build demo-up demo-down demo-token demo-smoke mtls-demo mtls-down help
 
-VERSION := 1.1.0
+VERSION ?= 1.1.0
 BUILD_TIME := $(shell date -u +"%Y-%m-%dT%H:%M:%SZ" 2>/dev/null || echo "unknown")
 GIT_COMMIT := $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
 DEMO_COMPOSE := examples/quickstart/docker-compose.yml
@@ -91,6 +91,15 @@ demo-down:
 demo-token:
 	@docker compose -f $(DEMO_COMPOSE) run --rm --entrypoint gonk-cli gonk auth jwt generate --role user --scopes read:api --user-id demo-user --expiry 24h
 
+demo-smoke:
+	@scripts/ci/quickstart-smoke.sh
+
+mtls-demo:
+	@sh examples/mtls/run.sh
+
+mtls-down:
+	@docker compose -f examples/mtls/docker-compose.yml down --remove-orphans -v
+
 # Show help
 help:
 	@echo "GONK v$(VERSION) Makefile"
@@ -108,7 +117,10 @@ help:
 	@echo "  make docker-build - Build Docker image"
 	@echo "  make demo-up      - Start the Docker Compose quickstart"
 	@echo "  make demo-token   - Generate a JWT for the quickstart"
+	@echo "  make demo-smoke   - Run the quickstart smoke test"
 	@echo "  make demo-down    - Stop the Docker Compose quickstart"
+	@echo "  make mtls-demo    - Run the mTLS Docker Compose demo"
+	@echo "  make mtls-down    - Stop the mTLS demo"
 	@echo "  make help         - Show this help"
 	@echo ""
 	@echo "Note: On Windows, use Git Bash or WSL to run make commands"

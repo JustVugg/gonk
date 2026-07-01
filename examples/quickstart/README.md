@@ -50,3 +50,11 @@ curl http://localhost:8080/metrics
 ```bash
 docker compose -f examples/quickstart/docker-compose.yml down --remove-orphans
 ```
+
+## Smoke Test
+
+```bash
+make demo-smoke
+```
+
+The smoke test starts the stack, calls a public route, generates a JWT, calls a protected route, checks metrics, and then tears the stack down.

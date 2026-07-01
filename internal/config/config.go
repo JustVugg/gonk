@@ -6,7 +6,9 @@ import (
 
 type Config struct {
 	Server    ServerConfig     `yaml:"server" json:"server"`
+	Runtime   RuntimeConfig    `yaml:"runtime,omitempty" json:"runtime,omitempty"`
 	Admin     AdminConfig      `yaml:"admin,omitempty" json:"admin,omitempty"`
+	Audit     AuditConfig      `yaml:"audit,omitempty" json:"audit,omitempty"`
 	Logging   LoggingConfig    `yaml:"logging" json:"logging"`
 	Auth      AuthConfig       `yaml:"auth,omitempty" json:"auth,omitempty"`
 	RateLimit *RateLimitConfig `yaml:"rate_limit,omitempty" json:"rate_limit,omitempty"`
@@ -14,11 +16,20 @@ type Config struct {
 	Routes    []Route          `yaml:"routes" json:"routes"`
 }
 
+type RuntimeConfig struct {
+	Environment      string `yaml:"environment,omitempty" json:"environment,omitempty"`
+	AllowDemoSecrets bool   `yaml:"allow_demo_secrets,omitempty" json:"allow_demo_secrets,omitempty"`
+}
+
 type AdminConfig struct {
 	RequireAuth  bool     `yaml:"require_auth" json:"require_auth"`
 	Header       string   `yaml:"header,omitempty" json:"header,omitempty"`
 	Token        string   `yaml:"token,omitempty" json:"token,omitempty"`
 	AllowedCIDRs []string `yaml:"allowed_cidrs,omitempty" json:"allowed_cidrs,omitempty"`
+}
+
+type AuditConfig struct {
+	Enabled bool `yaml:"enabled" json:"enabled"`
 }
 
 type ServerConfig struct {

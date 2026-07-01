@@ -5,6 +5,9 @@ server:
   listen: ":8080"
   hot_reload: true
 
+runtime:
+  environment: development
+
 logging:
   level: info
   format: text
@@ -13,6 +16,9 @@ logging:
 admin:
   require_auth: false
   header: X-Gonk-Admin-Token
+
+audit:
+  enabled: false
 
 metrics:
   enabled: true

@@ -20,6 +20,12 @@ docker run --rm -v "$PWD:/app" -w /app golang:1.21 go test ./...
 docker run --rm -v "$PWD:/app" -w /app golang:1.21 make build
 ```
 
+Run the Docker Compose quickstart smoke test:
+
+```bash
+make demo-smoke
+```
+
 ## Current Coverage Focus
 
 - Configuration loading, environment fallbacks, and repository example validation.
@@ -31,10 +37,11 @@ docker run --rm -v "$PWD:/app" -w /app golang:1.21 make build
 - Rate limiting rejection after burst exhaustion.
 - Admin endpoint token/CIDR enforcement and route introspection.
 - Cache statistics for entries, bytes, hits, and misses.
+- Production secret guardrails.
+- Operational status endpoint coverage.
 
 ## What Still Needs Deeper Coverage
 
-- mTLS with generated certificate chains.
 - WebSocket and gRPC proxy behavior.
 - Hot config reload behavior.
-- Full Docker Compose quickstart smoke test in CI when Docker Compose v2 is available.
+- Full mTLS Docker Compose smoke test in CI when runtime budget allows it.

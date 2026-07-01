@@ -50,6 +50,15 @@ auth:
 
 Avoid copying demo secrets into production. The CLI can generate demo JWTs with a fallback secret for local testing, but production services should always set `JWT_SECRET`.
 
+Set production mode to make this enforceable:
+
+```yaml
+runtime:
+  environment: production
+```
+
+In production mode, GONK rejects known demo secrets such as `change-me`, `change-me-in-production`, `change-me-admin-token`, and generated example placeholders. Use `runtime.allow_demo_secrets: true` only for demos that intentionally look like production configs.
+
 API key comparison is constant-time inside the gateway. Store API keys in environment variables or injected config bundles, not in committed files.
 
 ## mTLS
@@ -58,11 +67,34 @@ For device fleets, prefer a dedicated device CA and `client_auth: "require"` whe
 
 For mixed user/device routes, use `require_either` only when both accepted mechanisms grant the same operational risk. For admin routes, prefer JWT plus `require_client_cert`.
 
+The CLI can generate a simple local chain for demos:
+
+```bash
+gonk-cli certs generate --type ca --cn "GONK CA" --output ./certs
+gonk-cli certs generate --type server --cn localhost --output ./certs --ca-cert ./certs/ca.crt --ca-key ./certs/ca.key
+gonk-cli certs generate --type client --cn Device-001 --output ./certs --ca-cert ./certs/ca.crt --ca-key ./certs/ca.key
+```
+
+For a complete runnable example, use `make mtls-demo`.
+
+## Audit Logging
+
+Enable route-level audit logs:
+
+```yaml
+audit:
+  enabled: true
+```
+
+Audit entries include route, method, path, status, duration, client IP, identity type, identity, roles, and scopes. They use the configured logging output, so send logs to your platform collector or a protected file path.
+
 ## Deployment Checklist
 
 - Set `GONK_ADMIN_TOKEN`, `JWT_SECRET`, and API keys through the environment or secret manager.
 - Enable `admin.require_auth` and restrict `admin.allowed_cidrs`.
 - Keep `/metrics` on a trusted network or protect it through admin auth.
 - Use TLS and mTLS for untrusted networks.
+- Set `runtime.environment: production` and remove `runtime.allow_demo_secrets` for real deployments.
+- Enable `audit.enabled` for controlled environments and write logs to a protected sink.
 - Validate config with `gonk-cli validate -c gonk.yaml` before restart or hot reload.
-- Run `gonk-cli routes list`, `gonk-cli routes describe <name>`, and `gonk-cli cache stats` after deployment.
+- Run `gonk-cli status`, `gonk-cli routes list`, `gonk-cli routes describe <name>`, and `gonk-cli cache stats` after deployment.

@@ -13,6 +13,10 @@ server:
     client_ca: "/certs/ca.crt"
     client_auth: "request"
 
+runtime:
+  environment: production
+  allow_demo_secrets: true
+
 logging:
   level: info
   format: json
@@ -24,6 +28,9 @@ admin:
   token: "${GONK_ADMIN_TOKEN:-change-me-admin-token}"
   allowed_cidrs: ["127.0.0.1/32", "10.0.0.0/8"]
 
+audit:
+  enabled: true
+
 metrics:
   enabled: true
   path: /metrics
@@ -31,7 +38,7 @@ metrics:
 auth:
   jwt:
     enabled: true
-    secret_key: "${JWT_SECRET}"
+    secret_key: "${JWT_SECRET:-change-me-in-production}"
     header: "Authorization"
     prefix: "Bearer"
     expiry_check: true
@@ -42,7 +49,7 @@ auth:
     enabled: true
     header: "X-API-Key"
     keys:
-      - key: "${DEVICE_API_KEY}"
+      - key: "${DEVICE_API_KEY:-your-device-api-key-here}"
         client_id: "plc-001"
         roles: ["device"]
         scopes: ["write:sensors"]

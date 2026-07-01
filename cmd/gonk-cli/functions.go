@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"math/big"
+	"net"
 	"net/http"
 	"os"
 	"os/exec"
@@ -58,6 +59,48 @@ type routeAuthSummary struct {
 	RequireEither     []string `json:"require_either"`
 }
 
+type statusResponse struct {
+	Name            string                    `json:"name"`
+	Version         string                    `json:"version"`
+	Runtime         string                    `json:"runtime"`
+	AdminProtected  bool                      `json:"admin_protected"`
+	AuditEnabled    bool                      `json:"audit_enabled"`
+	Health          healthSummary             `json:"health"`
+	Cache           cacheSummary              `json:"cache"`
+	CircuitBreakers map[string]breakerSummary `json:"circuit_breakers"`
+	Routes          []routeStatusSummary      `json:"routes"`
+}
+
+type healthSummary struct {
+	Status    string           `json:"status"`
+	Uptime    string           `json:"uptime"`
+	Upstreams []upstreamHealth `json:"upstreams"`
+}
+
+type upstreamHealth struct {
+	Name   string `json:"name"`
+	URL    string `json:"url"`
+	Status string `json:"status"`
+}
+
+type cacheSummary struct {
+	TotalEntries int `json:"total_entries"`
+	TotalBytes   int `json:"total_bytes"`
+	TotalHits    int `json:"total_hits"`
+	TotalMisses  int `json:"total_misses"`
+}
+
+type breakerSummary struct {
+	State    string `json:"state"`
+	Failures int    `json:"failures"`
+}
+
+type routeStatusSummary struct {
+	Route          routeSummary           `json:"route"`
+	LoadBalancer   map[string]interface{} `json:"load_balancer"`
+	CircuitBreaker *breakerSummary        `json:"circuit_breaker"`
+}
+
 // Server management functions
 func startServer(configPath string) {
 	cmd := exec.Command("gonk", "-config", configPath)
@@ -71,21 +114,52 @@ func startServer(configPath string) {
 }
 
 func checkStatus() {
-	resp, err := http.Get(gonkEndpoint("/_gonk/health"))
+	status, err := fetchStatus()
 	if err != nil {
-		fmt.Println("❌ GONK server is not running")
+		fmt.Printf("❌ Failed to fetch GONK status: %v\n", err)
 		return
 	}
-	defer resp.Body.Close()
 
-	if resp.StatusCode == 200 {
-		var health map[string]interface{}
-		json.NewDecoder(resp.Body).Decode(&health)
-		fmt.Println("✅ GONK server is running")
-		fmt.Printf("   Uptime: %v\n", health["uptime"])
-		fmt.Printf("   Upstreams: %v\n", health["upstreams"])
-	} else {
-		fmt.Println("❌ GONK server is unhealthy")
+	fmt.Printf("GONK %s (%s)\n", status.Version, status.Health.Status)
+	fmt.Printf("Runtime: %s\n", fallback(status.Runtime, "development"))
+	fmt.Printf("Uptime: %s\n", status.Health.Uptime)
+	fmt.Printf("Admin Protected: %v\n", status.AdminProtected)
+	fmt.Printf("Audit Enabled: %v\n", status.AuditEnabled)
+	fmt.Printf("Routes: %d\n", len(status.Routes))
+	fmt.Printf("Cache: entries=%d bytes=%d hits=%d misses=%d\n",
+		status.Cache.TotalEntries,
+		status.Cache.TotalBytes,
+		status.Cache.TotalHits,
+		status.Cache.TotalMisses,
+	)
+
+	if len(status.Health.Upstreams) > 0 {
+		fmt.Println("\nUpstreams:")
+		for _, upstream := range status.Health.Upstreams {
+			fmt.Printf("  %-20s %-8s %s\n", upstream.Name, upstream.Status, upstream.URL)
+		}
+	}
+
+	if len(status.Routes) > 0 {
+		fmt.Println("\nRoutes:")
+		for _, routeStatus := range status.Routes {
+			breaker := "-"
+			if routeStatus.CircuitBreaker != nil {
+				breaker = fmt.Sprintf("%s/%d failures", routeStatus.CircuitBreaker.State, routeStatus.CircuitBreaker.Failures)
+			}
+			lb := "-"
+			if strategy, ok := routeStatus.LoadBalancer["strategy"].(string); ok && strategy != "" {
+				lb = strategy
+			}
+			fmt.Printf("  %-24s %-22s auth=%s cache=%v lb=%s cb=%s\n",
+				routeStatus.Route.Name,
+				routeStatus.Route.Path,
+				fallback(routeStatus.Route.Auth.Type, "none"),
+				routeStatus.Route.Cache,
+				lb,
+				breaker,
+			)
+		}
 	}
 }
 
@@ -432,7 +506,7 @@ func listAPIKeys(configPath string) {
 }
 
 // Certificate management
-func generateCertificate(cn, certType, output string) {
+func generateCertificate(cn, certType, output, caCertFile, caKeyFile string) {
 	fmt.Printf("Generating %s certificate for CN=%s...\n", certType, cn)
 
 	if certType != "server" && certType != "client" && certType != "ca" {
@@ -463,18 +537,43 @@ func generateCertificate(cn, certType, output string) {
 		},
 		NotBefore:             time.Now(),
 		NotAfter:              time.Now().Add(365 * 24 * time.Hour),
-		KeyUsage:              x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature,
-		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth, x509.ExtKeyUsageClientAuth},
 		BasicConstraintsValid: true,
 	}
 
-	if certType == "ca" {
+	switch certType {
+	case "ca":
 		template.IsCA = true
-		template.KeyUsage |= x509.KeyUsageCertSign
+		template.KeyUsage = x509.KeyUsageCertSign | x509.KeyUsageCRLSign
+	case "server":
+		template.KeyUsage = x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature
+		template.ExtKeyUsage = []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth}
+		addSubjectAlternativeName(&template, cn)
+	case "client":
+		template.KeyUsage = x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature
+		template.ExtKeyUsage = []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth}
+	}
+
+	parent := &template
+	signer := privateKey
+	if certType != "ca" && (caCertFile == "") != (caKeyFile == "") {
+		fmt.Println("Pass both --ca-cert and --ca-key, or neither")
+		return
+	}
+
+	if certType != "ca" && caCertFile != "" && caKeyFile != "" {
+		caCert, caKey, err := loadSigningCA(caCertFile, caKeyFile)
+		if err != nil {
+			fmt.Printf("Failed to load signing CA: %v\n", err)
+			return
+		}
+		parent = caCert
+		signer = caKey
+	} else if certType != "ca" {
+		fmt.Println("⚠️  Warning: server/client certificate is self-signed. Pass --ca-cert and --ca-key for mTLS chains.")
 	}
 
 	// Create certificate
-	certDER, err := x509.CreateCertificate(rand.Reader, &template, &template, &privateKey.PublicKey, privateKey)
+	certDER, err := x509.CreateCertificate(rand.Reader, &template, parent, &privateKey.PublicKey, signer)
 	if err != nil {
 		fmt.Printf("Failed to create certificate: %v\n", err)
 		return
@@ -557,7 +656,7 @@ func validateCertificate(certFile, caFile string) {
 		roots := x509.NewCertPool()
 		roots.AddCert(caCert)
 
-		if _, err := cert.Verify(x509.VerifyOptions{Roots: roots}); err != nil {
+		if _, err := cert.Verify(x509.VerifyOptions{Roots: roots, KeyUsages: []x509.ExtKeyUsage{x509.ExtKeyUsageAny}}); err != nil {
 			fmt.Printf("❌ Certificate failed CA verification: %v\n", err)
 			return
 		}
@@ -567,6 +666,47 @@ func validateCertificate(certFile, caFile string) {
 	fmt.Printf("   Subject: %s\n", cert.Subject.CommonName)
 	fmt.Printf("   Valid from: %s\n", cert.NotBefore.Format(time.RFC3339))
 	fmt.Printf("   Valid until: %s\n", cert.NotAfter.Format(time.RFC3339))
+}
+
+func loadSigningCA(certFile, keyFile string) (*x509.Certificate, *rsa.PrivateKey, error) {
+	certPEM, err := ioutil.ReadFile(certFile)
+	if err != nil {
+		return nil, nil, fmt.Errorf("read CA certificate: %w", err)
+	}
+	certBlock, _ := pem.Decode(certPEM)
+	if certBlock == nil {
+		return nil, nil, fmt.Errorf("parse CA certificate PEM")
+	}
+	cert, err := x509.ParseCertificate(certBlock.Bytes)
+	if err != nil {
+		return nil, nil, fmt.Errorf("parse CA certificate: %w", err)
+	}
+	if !cert.IsCA {
+		return nil, nil, fmt.Errorf("certificate %s is not a CA", certFile)
+	}
+
+	keyPEM, err := ioutil.ReadFile(keyFile)
+	if err != nil {
+		return nil, nil, fmt.Errorf("read CA key: %w", err)
+	}
+	keyBlock, _ := pem.Decode(keyPEM)
+	if keyBlock == nil {
+		return nil, nil, fmt.Errorf("parse CA key PEM")
+	}
+	key, err := x509.ParsePKCS1PrivateKey(keyBlock.Bytes)
+	if err != nil {
+		return nil, nil, fmt.Errorf("parse CA key: %w", err)
+	}
+
+	return cert, key, nil
+}
+
+func addSubjectAlternativeName(template *x509.Certificate, cn string) {
+	if ip := net.ParseIP(cn); ip != nil {
+		template.IPAddresses = append(template.IPAddresses, ip)
+		return
+	}
+	template.DNSNames = append(template.DNSNames, cn)
 }
 
 func showCertInfo(certFile string) {
@@ -753,6 +893,59 @@ func fetchRoutes() (*routesResponse, error) {
 		return nil, err
 	}
 	return &routes, nil
+}
+
+func fetchStatus() (*statusResponse, error) {
+	req, err := newAdminRequest(http.MethodGet, "/_gonk/status", nil)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode == http.StatusNotFound {
+		return fetchLegacyHealthStatus()
+	}
+	if resp.StatusCode >= 400 {
+		body, _ := ioutil.ReadAll(resp.Body)
+		return nil, fmt.Errorf("HTTP %d %s", resp.StatusCode, strings.TrimSpace(string(body)))
+	}
+
+	var status statusResponse
+	if err := json.NewDecoder(resp.Body).Decode(&status); err != nil {
+		return nil, err
+	}
+	return &status, nil
+}
+
+func fetchLegacyHealthStatus() (*statusResponse, error) {
+	resp, err := http.Get(gonkEndpoint("/_gonk/health"))
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode >= 400 {
+		body, _ := ioutil.ReadAll(resp.Body)
+		return nil, fmt.Errorf("HTTP %d %s", resp.StatusCode, strings.TrimSpace(string(body)))
+	}
+
+	var health map[string]interface{}
+	if err := json.NewDecoder(resp.Body).Decode(&health); err != nil {
+		return nil, err
+	}
+
+	return &statusResponse{
+		Version: Version,
+		Health: healthSummary{
+			Status: fmt.Sprint(health["status"]),
+			Uptime: fmt.Sprint(health["uptime"]),
+		},
+	}, nil
 }
 
 func newAdminRequest(method, path string, body interface{}) (*http.Request, error) {

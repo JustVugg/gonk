@@ -89,3 +89,48 @@ func TestRoutesEndpointReturnsConfiguredRoutes(t *testing.T) {
 		t.Fatalf("unexpected routes response: %#v", response)
 	}
 }
+
+func TestStatusEndpointReturnsOperationalState(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer upstream.Close()
+
+	srv := New(&config.Config{
+		Runtime: config.RuntimeConfig{Environment: "test"},
+		Audit:   config.AuditConfig{Enabled: true},
+		Routes: []config.Route{
+			{
+				Name:     "api",
+				Path:     "/api/*",
+				Methods:  []string{http.MethodGet},
+				Protocol: "http",
+				Upstreams: []config.Upstream{{
+					URL:    upstream.URL,
+					Weight: 100,
+				}},
+				Cache: &config.CacheConfig{Enabled: true},
+			},
+		},
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/_gonk/status", nil)
+	req.RemoteAddr = "127.0.0.1:12345"
+	rr := httptest.NewRecorder()
+	srv.httpServer.Handler.ServeHTTP(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d, body = %s", rr.Code, http.StatusOK, rr.Body.String())
+	}
+
+	var response struct {
+		Runtime      string        `json:"runtime"`
+		AuditEnabled bool          `json:"audit_enabled"`
+		Routes       []interface{} `json:"routes"`
+	}
+	if err := json.Unmarshal(rr.Body.Bytes(), &response); err != nil {
+		t.Fatalf("failed to decode status response: %v", err)
+	}
+	if response.Runtime != "test" || !response.AuditEnabled || len(response.Routes) != 1 {
+		t.Fatalf("unexpected status response: %#v", response)
+	}
+}

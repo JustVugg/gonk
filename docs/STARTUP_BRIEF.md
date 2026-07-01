@@ -22,11 +22,11 @@ The narrow wedge is: "single-binary zero-control-plane gateway for secure edge n
 
 ## Product Gaps To Close
 
-- Release-grade artifacts with checksums and a documented release process.
-- End-to-end Docker Compose smoke test in CI.
-- Deeper docs for the three primary use cases: industrial IoT, microservices edge, and air-gapped admin access.
-- Hardening tests for generated certificate chains, WebSocket/gRPC proxy behavior, and config reload.
-- A small dashboard or richer terminal status view for operators.
+- Signed release artifacts and a documented release checklist.
+- Deeper docs for air-gapped admin access and certificate lifecycle operations.
+- Hardening tests for WebSocket/gRPC proxy behavior, config reload cleanup, and long-running health checks.
+- Fleet-level status/dashboard for multi-node deployments.
+- CI mTLS smoke test once runtime budget allows an additional Docker Compose stack.
 
 ## Commercial Roadmap
 
@@ -36,8 +36,8 @@ The narrow wedge is: "single-binary zero-control-plane gateway for secure edge n
 
 ## First 30-Day Milestones
 
-- Keep `make build`, `make test`, and `make docker-build` passing in a clean environment.
-- Add release artifacts with checksums for Linux, macOS, and Windows.
-- Add a CI smoke test for the quickstart Docker Compose stack.
-- Publish one complete industrial IoT walkthrough with mTLS, API key fallback, JWT operators, and Prometheus.
-- Add a small operator status view over route, cache, upstream, and circuit breaker state.
+- Keep `make build`, `make test`, `make demo-smoke`, and `make docker-build` passing in CI.
+- Publish a tagged release using the release workflow and verify checksums.
+- Add one complete industrial IoT walkthrough with mTLS, API key fallback, JWT operators, and Prometheus.
+- Add config reload stress tests for repeated route/upstream changes.
+- Add WebSocket and gRPC smoke tests with real upstream services.

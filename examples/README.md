@@ -5,6 +5,9 @@ The `examples/` directory contains runnable demos and complete configurations:
 **Quickstart Demo** (`examples/quickstart/`)
 Runs GONK, two backend services, and Prometheus with Docker Compose. This is the fastest way to try the project end to end.
 
+**mTLS Demo** (`examples/mtls/`)
+Generates a local CA plus signed server/client certificates, then runs GONK with client certificate authentication.
+
 **Basic Setup** (`examples/basic/gonk.yaml`)  
 Simple configuration for development and testing. Uses JWT authentication with role-based permissions.
 
@@ -22,6 +25,16 @@ Run any example:
 Run the quickstart demo:
 ```bash
 make demo-up
+```
+
+Run the quickstart smoke test:
+```bash
+make demo-smoke
+```
+
+Run the mTLS demo:
+```bash
+make mtls-demo
 ```
 
 Validate before deploying:

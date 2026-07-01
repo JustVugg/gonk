@@ -1,0 +1,47 @@
+server:
+  listen: ":8443"
+  hot_reload: false
+  read_timeout: 30s
+  write_timeout: 30s
+  idle_timeout: 120s
+  tls:
+    enabled: true
+    cert_file: /certs/server.crt
+    key_file: /certs/server.key
+    client_ca: /certs/ca.crt
+    client_auth: require
+
+runtime:
+  environment: development
+
+logging:
+  level: info
+  format: text
+  output: stdout
+
+admin:
+  require_auth: false
+
+audit:
+  enabled: true
+
+metrics:
+  enabled: true
+  path: /metrics
+
+routes:
+  - name: device-api
+    path: /device/*
+    methods: [GET, POST]
+    upstreams:
+      - url: http://backend:3000
+        weight: 100
+        health_check: /health
+    auth:
+      type: mtls
+      required: true
+      cert_to_role_mapping:
+        "CN=Device-*": device
+      permissions:
+        - identity_type: device
+          methods: [GET, POST]

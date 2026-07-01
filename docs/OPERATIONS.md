@@ -19,6 +19,7 @@ gonk-cli --url http://edge-gateway.local:8080 routes list
 ## Health
 
 ```bash
+gonk-cli status
 gonk-cli health
 curl http://localhost:8080/_gonk/health
 curl http://localhost:8080/_gonk/ready
@@ -26,6 +27,8 @@ curl http://localhost:8080/_gonk/live
 ```
 
 Health endpoints are intentionally simple for process supervisors and container orchestrators.
+
+`gonk-cli status` uses `/_gonk/status` and includes runtime mode, admin protection, audit state, route summaries, upstreams, cache totals, and circuit breaker state.
 
 ## Routes
 
@@ -69,6 +72,28 @@ curl http://localhost:8080/metrics
 
 Request metrics use stable route labels instead of raw request paths. This keeps Prometheus cardinality bounded when URLs contain IDs.
 
+## Audit
+
+Enable audit logs in config:
+
+```yaml
+audit:
+  enabled: true
+```
+
+Audit records are written through the configured logger. They include route, method, path, status, duration, client IP, identity type, identity, roles, and scopes.
+
+## Production Mode
+
+Use production mode to reject demo secrets:
+
+```yaml
+runtime:
+  environment: production
+```
+
+For demos that intentionally use sample secrets, set `runtime.allow_demo_secrets: true`. Do not carry that flag into real deployments.
+
 ## Logs
 
 When logging to a file:
@@ -93,4 +118,20 @@ For a clean Linux verification environment:
 
 ```bash
 docker run --rm -v "$PWD:/app" -w /app golang:1.21 go test ./...
+```
+
+## Smoke Tests
+
+Run the quickstart smoke test locally:
+
+```bash
+make demo-smoke
+```
+
+This starts the Docker Compose quickstart, calls a public route, generates a JWT, calls a protected route, and verifies Prometheus metrics.
+
+Run the mTLS walkthrough:
+
+```bash
+make mtls-demo
 ```

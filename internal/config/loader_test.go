@@ -59,12 +59,14 @@ func TestLoadRepositoryExamples(t *testing.T) {
 		"examples/basic/gonk.yaml",
 		"examples/industrial-iot/gonk.yaml",
 		"examples/microservices/gonk.yaml",
+		"examples/mtls/gonk.yaml",
 		"examples/quickstart/gonk.yaml",
 		"configs/gonk.example.yaml",
 	}
 
 	t.Setenv("JWT_SECRET", "test-secret")
 	t.Setenv("DEVICE_KEY", "test-device-key")
+	t.Setenv("DEVICE_API_KEY", "test-device-api-key")
 
 	for _, example := range examples {
 		t.Run(example, func(t *testing.T) {
@@ -127,6 +129,58 @@ routes:
 
 	if _, err := Load(configPath); err == nil {
 		t.Fatal("Load() should reject admin auth without token")
+	}
+}
+
+func TestLoadRejectsDemoSecretsInProduction(t *testing.T) {
+	configPath := filepath.Join(t.TempDir(), "gonk.yaml")
+	configContent := `
+runtime:
+  environment: production
+admin:
+  require_auth: true
+  token: change-me-admin-token
+auth:
+  jwt:
+    enabled: true
+    secret_key: change-me-in-production
+routes:
+  - name: api
+    path: /api/*
+    upstreams:
+      - url: http://backend:3000
+`
+
+	if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
+		t.Fatalf("failed to write test config: %v", err)
+	}
+
+	if _, err := Load(configPath); err == nil {
+		t.Fatal("Load() should reject demo secrets in production")
+	}
+}
+
+func TestLoadAllowsDemoSecretsOutsideProduction(t *testing.T) {
+	configPath := filepath.Join(t.TempDir(), "gonk.yaml")
+	configContent := `
+runtime:
+  environment: development
+admin:
+  require_auth: true
+  token: change-me-admin-token
+routes:
+  - name: api
+    path: /api/*
+    upstreams:
+      - url: http://backend:3000
+`
+
+	if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
+		t.Fatalf("failed to write test config: %v", err)
+	}
+
+	if _, err := Load(configPath); err != nil {
+		t.Fatalf("Load() should allow demo secrets outside production: %v", err)
 	}
 }
 

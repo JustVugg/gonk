@@ -38,6 +38,7 @@ type Server struct {
 	healthMonitor *health.Monitor
 	cacheManager  *cache.Manager
 	cbManager     *resilience.CircuitBreakerManager
+	proxyHandlers map[string]*proxy.Handler
 	mu            sync.RWMutex
 }
 
@@ -75,6 +76,7 @@ func New(cfg *config.Config) *Server {
 		healthMonitor: health.NewMonitor(),
 		cacheManager:  cache.NewManager(),
 		cbManager:     resilience.NewCircuitBreakerManager(),
+		proxyHandlers: make(map[string]*proxy.Handler),
 	}
 
 	s.setupRouter()
@@ -200,6 +202,7 @@ func (s *Server) addRoute(route config.Route) {
 		log.Printf("❌ Failed to create proxy for route %s: %v", route.Name, err)
 		return
 	}
+	s.proxyHandlers[route.Name] = proxyHandler
 
 	handler := http.Handler(proxyHandler)
 
@@ -222,6 +225,10 @@ func (s *Server) addRoute(route config.Route) {
 		handler = middleware.RateLimit(route.RateLimit, handler)
 	} else if s.config.RateLimit != nil && s.config.RateLimit.Enabled {
 		handler = middleware.RateLimit(s.config.RateLimit, handler)
+	}
+
+	if s.config.Audit.Enabled {
+		handler = middleware.Audit(route.Name, handler)
 	}
 
 	// Authentication and authorization middleware (outermost)
@@ -283,6 +290,7 @@ func (s *Server) setupInternalEndpoints() {
 	s.router.HandleFunc("/_gonk/ready", s.healthMonitor.ReadinessHandler).Methods("GET").Name("gonk-ready")
 	s.router.Handle("/_gonk/info", s.adminMiddleware(http.HandlerFunc(s.infoHandler))).Methods("GET").Name("gonk-info")
 	s.router.Handle("/_gonk/routes", s.adminMiddleware(http.HandlerFunc(s.routesHandler))).Methods("GET").Name("gonk-routes")
+	s.router.Handle("/_gonk/status", s.adminMiddleware(http.HandlerFunc(s.statusHandler))).Methods("GET").Name("gonk-status")
 
 	if s.config.Metrics.Enabled {
 		s.router.Handle(s.config.Metrics.Path, s.adminMiddleware(metrics.Handler())).Methods("GET").Name("gonk-metrics")
@@ -384,6 +392,37 @@ func (s *Server) routesHandler(w http.ResponseWriter, r *http.Request) {
 
 	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"routes": routes,
+	})
+}
+
+func (s *Server) statusHandler(w http.ResponseWriter, r *http.Request) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	routes := make([]map[string]interface{}, 0, len(s.config.Routes))
+	for _, route := range s.config.Routes {
+		routeStatus := map[string]interface{}{
+			"route":           buildRouteInfo(route),
+			"circuit_breaker": s.cbManager.RouteStats(route.Name),
+		}
+		if proxyHandler := s.proxyHandlers[route.Name]; proxyHandler != nil {
+			if lbStats := proxyHandler.LoadBalancerStats(); lbStats != nil {
+				routeStatus["load_balancer"] = lbStats
+			}
+		}
+		routes = append(routes, routeStatus)
+	}
+
+	writeJSON(w, http.StatusOK, map[string]interface{}{
+		"name":             "GONK",
+		"version":          "1.1.0",
+		"runtime":          s.config.Runtime.Environment,
+		"admin_protected":  s.config.Admin.RequireAuth || len(s.config.Admin.AllowedCIDRs) > 0,
+		"audit_enabled":    s.config.Audit.Enabled,
+		"health":           s.healthMonitor.Stats(),
+		"cache":            s.cacheManager.Stats(),
+		"circuit_breakers": s.cbManager.Stats(),
+		"routes":           routes,
 	})
 }
 
@@ -495,15 +534,30 @@ func (s *Server) Reload(newConfig *config.Config) {
 
 	log.Println("🔄 Reloading configuration...")
 
+	oldProxyHandlers := s.proxyHandlers
 	s.config = newConfig
-
 	s.router = mux.NewRouter()
+	s.proxyHandlers = make(map[string]*proxy.Handler)
+	s.healthMonitor.ClearUpstreams()
+
 	s.setupRouter()
 	s.setupMiddleware()
 	s.setupRoutes()
 	s.setupInternalEndpoints()
 
 	s.httpServer.Handler = s.buildHandler()
+	closeProxyHandlers(oldProxyHandlers)
 
 	log.Println("✅ Configuration reloaded successfully")
+}
+
+func closeProxyHandlers(handlers map[string]*proxy.Handler) {
+	for name, handler := range handlers {
+		if handler == nil {
+			continue
+		}
+		if err := handler.Close(); err != nil {
+			log.Printf("failed to close proxy handler for route %s: %v", name, err)
+		}
+	}
 }

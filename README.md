@@ -18,8 +18,9 @@ It is designed for teams that need secure service exposure near devices without 
 - Security primitives close to the edge: JWT, API keys, mTLS, RBAC, scopes, and certificate-to-role mapping.
 - Works in constrained or disconnected networks where Kubernetes, SaaS control planes, and central databases are not always available.
 - Built for operational workflows: templates, validation, hot reload, health endpoints, Prometheus metrics, and a companion CLI.
+- Operator guardrails: protected admin endpoints, audit logging, production secret checks, route introspection, and cache/status views.
 
-See [docs/SECURITY.md](docs/SECURITY.md) for the security model and [docs/OPERATIONS.md](docs/OPERATIONS.md) for day-two operations.
+See [docs/SECURITY.md](docs/SECURITY.md) for the security model, [docs/OPERATIONS.md](docs/OPERATIONS.md) for day-two operations, and [docs/RELEASE.md](docs/RELEASE.md) for releases.
 
 ## Best-Fit Use Cases
 
@@ -80,6 +81,12 @@ curl -H "Authorization: Bearer <token>" http://localhost:8080/api/ping
 ```
 
 See [examples/quickstart](examples/quickstart/) for the full demo with two upstream services and Prometheus.
+
+Run the CI-equivalent smoke test locally:
+
+```bash
+make demo-smoke
+```
 
 Generate a basic configuration:
 
@@ -212,9 +219,30 @@ CLI commands that call admin endpoints automatically send `GONK_ADMIN_TOKEN` whe
 
 ```bash
 export GONK_ADMIN_TOKEN="change-me"
+gonk-cli --url http://localhost:8080 status
 gonk-cli --url http://localhost:8080 routes list
 gonk-cli --url http://localhost:8080 cache stats
 ```
+
+### Production Secret Guardrails
+
+Set production mode to reject demo secrets such as `change-me` and `change-me-admin-token`:
+
+```yaml
+runtime:
+  environment: production
+```
+
+For intentionally demo-only production-shaped examples, set `runtime.allow_demo_secrets: true`.
+
+### Audit Logging
+
+```yaml
+audit:
+  enabled: true
+```
+
+Audit logs include route, method, path, status, duration, client IP, identity type, identity, roles, and scopes.
 
 ## CLI Reference
 
@@ -227,6 +255,7 @@ gonk-cli status                     # Check if server is running
 gonk-cli health                     # Server health check
 gonk-cli --url http://localhost:8080 routes list
 gonk-cli --url http://localhost:8080 routes describe api
+gonk-cli --url http://localhost:8080 cache stats
 ```
 
 ### JWT Management
@@ -259,10 +288,10 @@ gonk-cli auth apikey list -c gonk.yaml
 gonk-cli certs generate --cn "GONK CA" --type ca --output ./certs
 
 # Generate server cert
-gonk-cli certs generate --cn "localhost" --type server --output ./certs
+gonk-cli certs generate --cn "localhost" --type server --output ./certs --ca-cert ./certs/ca.crt --ca-key ./certs/ca.key
 
 # Generate client cert
-gonk-cli certs generate --cn "Device-001" --type client --output ./certs
+gonk-cli certs generate --cn "Device-001" --type client --output ./certs --ca-cert ./certs/ca.crt --ca-key ./certs/ca.key
 
 # Validate cert against CA
 gonk-cli certs validate --cert ./certs/client.crt --ca ./certs/ca.crt
@@ -279,6 +308,16 @@ gonk-cli metrics --route api-v1     # Filter by route
 gonk-cli cache stats                # Cache statistics with entries, bytes, hits, misses
 gonk-cli cache clear                # Clear cache
 ```
+
+## mTLS Demo
+
+Run a complete certificate-chain demo with Docker Compose:
+
+```bash
+make mtls-demo
+```
+
+See [examples/mtls](examples/mtls/) for details.
 
 ### Configuration Templates
 
@@ -407,6 +446,12 @@ make test
 make demo-up
 make demo-token
 make demo-down
+
+# CI-equivalent quickstart smoke test
+make demo-smoke
+
+# Full mTLS demo
+make mtls-demo
 ```
 
 ## Testing

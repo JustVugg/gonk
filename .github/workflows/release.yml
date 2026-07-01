@@ -1,0 +1,39 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  artifacts:
+    name: Build Release Artifacts
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.21.x"
+          cache: true
+
+      - name: Build all binaries
+        run: make build-all VERSION="${GITHUB_REF_NAME#v}"
+
+      - name: Create checksums
+        run: |
+          cd bin
+          sha256sum * > checksums.txt
+
+      - name: Upload GitHub release assets
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            bin/gonk-*
+            bin/gonk-cli-*
+            bin/checksums.txt

@@ -257,8 +257,10 @@ var certsGenerateCmd = &cobra.Command{
 		cn, _ := cmd.Flags().GetString("cn")
 		certType, _ := cmd.Flags().GetString("type")
 		output, _ := cmd.Flags().GetString("output")
+		caCert, _ := cmd.Flags().GetString("ca-cert")
+		caKey, _ := cmd.Flags().GetString("ca-key")
 
-		generateCertificate(cn, certType, output)
+		generateCertificate(cn, certType, output, caCert, caKey)
 	},
 }
 
@@ -398,6 +400,8 @@ func init() {
 	certsGenerateCmd.Flags().StringP("cn", "n", "localhost", "Common Name")
 	certsGenerateCmd.Flags().StringP("type", "t", "server", "Certificate type (server, client, ca)")
 	certsGenerateCmd.Flags().StringP("output", "o", ".", "Output directory")
+	certsGenerateCmd.Flags().String("ca-cert", "", "CA certificate for signing server/client certificates")
+	certsGenerateCmd.Flags().String("ca-key", "", "CA private key for signing server/client certificates")
 
 	certsValidateCmd.Flags().StringP("cert", "c", "", "Certificate file")
 	certsValidateCmd.Flags().StringP("ca", "a", "", "CA certificate file")
