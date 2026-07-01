@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/JustVugg/gonk/internal/config"
+	"github.com/JustVugg/gonk/internal/metrics"
 )
 
 // UpstreamState represents the health state of an upstream
@@ -352,6 +353,7 @@ func (lb *LoadBalancer) markHealthy(upstream *UpstreamState) {
 	if wasUnhealthy {
 		log.Printf("Upstream %s recovered and marked healthy", upstream.URL)
 	}
+	metrics.UpdateUpstreamHealth(upstream.URL.String(), 1)
 }
 
 // markUnhealthy marks upstream as unhealthy
@@ -366,6 +368,7 @@ func (lb *LoadBalancer) markUnhealthy(upstream *UpstreamState) {
 	if wasHealthy {
 		log.Printf("Upstream %s failed health check and marked unhealthy", upstream.URL)
 	}
+	metrics.UpdateUpstreamHealth(upstream.URL.String(), 0)
 }
 
 // Stop stops the load balancer

@@ -13,6 +13,13 @@ make test-race
 
 Coverage output is written to `coverage.out` by `make test-coverage`.
 
+When the host Go toolchain is not available, run the suite in Docker:
+
+```bash
+docker run --rm -v "$PWD:/app" -w /app golang:1.21 go test ./...
+docker run --rm -v "$PWD:/app" -w /app golang:1.21 make build
+```
+
 ## Current Coverage Focus
 
 - Configuration loading, environment fallbacks, and repository example validation.
@@ -22,11 +29,12 @@ Coverage output is written to `coverage.out` by `make test-coverage`.
 - Load balancer health-check URL selection and unhealthy upstream skipping.
 - Response cache hit behavior and header preservation.
 - Rate limiting rejection after burst exhaustion.
+- Admin endpoint token/CIDR enforcement and route introspection.
+- Cache statistics for entries, bytes, hits, and misses.
 
 ## What Still Needs Deeper Coverage
 
 - mTLS with generated certificate chains.
 - WebSocket and gRPC proxy behavior.
-- Circuit breaker state transitions.
 - Hot config reload behavior.
 - Full Docker Compose quickstart smoke test in CI when Docker Compose v2 is available.

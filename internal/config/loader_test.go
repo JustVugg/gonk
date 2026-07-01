@@ -75,6 +75,61 @@ func TestLoadRepositoryExamples(t *testing.T) {
 	}
 }
 
+func TestLoadDefaultsAdminHeaderAndRouteRateLimitBurst(t *testing.T) {
+	configPath := filepath.Join(t.TempDir(), "gonk.yaml")
+	configContent := `
+admin:
+  require_auth: true
+  token: admin-secret
+  allowed_cidrs: [127.0.0.1/32]
+routes:
+  - name: api
+    path: /api/*
+    upstreams:
+      - url: http://backend:3000
+    rate_limit:
+      enabled: true
+      requests_per_second: 25
+`
+
+	if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
+		t.Fatalf("failed to write test config: %v", err)
+	}
+
+	cfg, err := Load(configPath)
+	if err != nil {
+		t.Fatalf("Load() returned error: %v", err)
+	}
+
+	if cfg.Admin.Header != "X-Gonk-Admin-Token" {
+		t.Fatalf("admin header = %q, want X-Gonk-Admin-Token", cfg.Admin.Header)
+	}
+	if got := cfg.Routes[0].RateLimit.Burst; got != 25 {
+		t.Fatalf("route rate limit burst = %d, want 25", got)
+	}
+}
+
+func TestLoadRejectsAdminAuthWithoutToken(t *testing.T) {
+	configPath := filepath.Join(t.TempDir(), "gonk.yaml")
+	configContent := `
+admin:
+  require_auth: true
+routes:
+  - name: api
+    path: /api/*
+    upstreams:
+      - url: http://backend:3000
+`
+
+	if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
+		t.Fatalf("failed to write test config: %v", err)
+	}
+
+	if _, err := Load(configPath); err == nil {
+		t.Fatal("Load() should reject admin auth without token")
+	}
+}
+
 func repositoryRoot(t *testing.T) string {
 	t.Helper()
 

@@ -91,3 +91,29 @@ func TestManagerReusesAndClearsCaches(t *testing.T) {
 		t.Fatalf("cache entry should be cleared, got %#v", got)
 	}
 }
+
+func TestStatsReportsEntriesHitsAndMisses(t *testing.T) {
+	cache := &Cache{
+		config: &config.CacheConfig{
+			Enabled: true,
+			TTL:     time.Minute,
+			Methods: []string{http.MethodGet},
+		},
+		store: make(map[string]*Entry),
+	}
+
+	handler := cache.Middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte("cached-body"))
+	}))
+
+	handler.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/resource", nil))
+	handler.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/resource", nil))
+
+	stats := cache.Stats()
+	if stats.Entries != 1 || stats.FreshEntries != 1 || stats.Bytes != len("cached-body") {
+		t.Fatalf("unexpected stats: %#v", stats)
+	}
+	if stats.Hits != 1 || stats.Misses != 1 {
+		t.Fatalf("hits/misses = %d/%d, want 1/1", stats.Hits, stats.Misses)
+	}
+}

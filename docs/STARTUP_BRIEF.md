@@ -22,11 +22,11 @@ The narrow wedge is: "single-binary zero-control-plane gateway for secure edge n
 
 ## Product Gaps To Close
 
-- Reproducible builds and CI on every PR.
-- End-to-end examples that can run locally with Docker Compose.
-- Clear docs for the three primary use cases: industrial IoT, microservices edge, and air-gapped admin access.
-- Hardening tests for auth combinations, route matching, load balancing, cache behavior, and config reload.
-- A small dashboard or CLI status view that makes the gateway feel operationally polished.
+- Release-grade artifacts with checksums and a documented release process.
+- End-to-end Docker Compose smoke test in CI.
+- Deeper docs for the three primary use cases: industrial IoT, microservices edge, and air-gapped admin access.
+- Hardening tests for generated certificate chains, WebSocket/gRPC proxy behavior, and config reload.
+- A small dashboard or richer terminal status view for operators.
 
 ## Commercial Roadmap
 
@@ -36,8 +36,8 @@ The narrow wedge is: "single-binary zero-control-plane gateway for secure edge n
 
 ## First 30-Day Milestones
 
-- Make `make build`, `make test`, and `make docker-build` pass in a clean environment.
-- Add GitHub Actions for test, lint, Docker build, and release artifacts.
-- Publish a one-command demo with backend, gateway, Prometheus, and sample tokens.
-- Rewrite README around the edge/industrial wedge instead of a generic API gateway.
-- Add a security model document that explains JWT, API key, mTLS, and combined auth modes.
+- Keep `make build`, `make test`, and `make docker-build` passing in a clean environment.
+- Add release artifacts with checksums for Linux, macOS, and Windows.
+- Add a CI smoke test for the quickstart Docker Compose stack.
+- Publish one complete industrial IoT walkthrough with mTLS, API key fallback, JWT operators, and Prometheus.
+- Add a small operator status view over route, cache, upstream, and circuit breaker state.

@@ -19,6 +19,8 @@ It is designed for teams that need secure service exposure near devices without 
 - Works in constrained or disconnected networks where Kubernetes, SaaS control planes, and central databases are not always available.
 - Built for operational workflows: templates, validation, hot reload, health endpoints, Prometheus metrics, and a companion CLI.
 
+See [docs/SECURITY.md](docs/SECURITY.md) for the security model and [docs/OPERATIONS.md](docs/OPERATIONS.md) for day-two operations.
+
 ## Best-Fit Use Cases
 
 - Industrial gateways exposing PLC, sensor, historian, or HMI services.
@@ -194,6 +196,26 @@ routes:
 
 Traffic is distributed 70/30 between backends. Health checks run every 10 seconds and failed upstreams are automatically removed from rotation.
 
+### Protecting Admin Endpoints
+
+GONK exposes operational endpoints under `/_gonk/*` and, when enabled, `/metrics`. Protect them with an admin token and optional CIDR allowlist:
+
+```yaml
+admin:
+  require_auth: true
+  header: "X-Gonk-Admin-Token"
+  token: "${GONK_ADMIN_TOKEN}"
+  allowed_cidrs: ["127.0.0.1/32", "10.0.0.0/8"]
+```
+
+CLI commands that call admin endpoints automatically send `GONK_ADMIN_TOKEN` when it is set:
+
+```bash
+export GONK_ADMIN_TOKEN="change-me"
+gonk-cli --url http://localhost:8080 routes list
+gonk-cli --url http://localhost:8080 cache stats
+```
+
 ## CLI Reference
 
 ### Server Operations
@@ -203,6 +225,8 @@ gonk -config gonk.yaml              # Start server
 gonk-cli validate -c gonk.yaml      # Validate configuration
 gonk-cli status                     # Check if server is running
 gonk-cli health                     # Server health check
+gonk-cli --url http://localhost:8080 routes list
+gonk-cli --url http://localhost:8080 routes describe api
 ```
 
 ### JWT Management
@@ -225,7 +249,7 @@ gonk-cli auth jwt decode <token>
 gonk-cli auth apikey generate --client-id mobile-app --roles user --scopes "read:sensors"
 
 # List configured keys
-gonk-cli auth apikey list
+gonk-cli auth apikey list -c gonk.yaml
 ```
 
 ### Certificate Management
@@ -252,7 +276,7 @@ gonk-cli certs info --cert ./certs/client.crt
 ```bash
 gonk-cli metrics                    # Show Prometheus metrics
 gonk-cli metrics --route api-v1     # Filter by route
-gonk-cli cache stats                # Cache statistics
+gonk-cli cache stats                # Cache statistics with entries, bytes, hits, misses
 gonk-cli cache clear                # Clear cache
 ```
 

@@ -10,6 +10,10 @@ logging:
   format: text
   output: stdout
 
+admin:
+  require_auth: false
+  header: "X-Gonk-Admin-Token"
+
 metrics:
   enabled: true
   path: /metrics
@@ -56,6 +60,12 @@ logging:
   level: info
   format: json
   output: /var/log/gonk/gonk.log
+
+admin:
+  require_auth: true
+  header: "X-Gonk-Admin-Token"
+  token: "${GONK_ADMIN_TOKEN:-change-me-admin-token}"
+  allowed_cidrs: ["127.0.0.1/32", "10.0.0.0/8"]
 
 metrics:
   enabled: true
@@ -183,6 +193,12 @@ logging:
   level: info
   format: json
   output: stdout
+
+admin:
+  require_auth: true
+  header: "X-Gonk-Admin-Token"
+  token: "${GONK_ADMIN_TOKEN:-change-me-admin-token}"
+  allowed_cidrs: ["127.0.0.1/32", "10.0.0.0/8"]
 
 metrics:
   enabled: true

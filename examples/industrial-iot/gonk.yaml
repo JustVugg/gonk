@@ -18,6 +18,12 @@ logging:
   format: json
   output: /var/log/gonk/gonk.log
 
+admin:
+  require_auth: true
+  header: X-Gonk-Admin-Token
+  token: "${GONK_ADMIN_TOKEN:-change-me-admin-token}"
+  allowed_cidrs: ["127.0.0.1/32", "10.0.0.0/8"]
+
 metrics:
   enabled: true
   path: /metrics

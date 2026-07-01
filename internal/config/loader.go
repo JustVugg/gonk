@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/url"
 	"os"
 	"strings"
@@ -69,6 +70,11 @@ func setDefaults(cfg *Config) {
 		cfg.Server.IdleTimeout = 120 * time.Second
 	}
 
+	// Admin endpoint defaults
+	if cfg.Admin.Header == "" {
+		cfg.Admin.Header = "X-Gonk-Admin-Token"
+	}
+
 	// TLS defaults
 	if cfg.Server.TLS != nil && cfg.Server.TLS.Enabled {
 		if cfg.Server.TLS.ClientAuth == "" {
@@ -92,6 +98,10 @@ func setDefaults(cfg *Config) {
 	// Metrics defaults
 	if cfg.Metrics.Path == "" {
 		cfg.Metrics.Path = "/metrics"
+	}
+
+	if cfg.RateLimit != nil {
+		setRateLimitDefaults(cfg.RateLimit)
 	}
 
 	// Route defaults
@@ -158,6 +168,10 @@ func setDefaults(cfg *Config) {
 			}
 		}
 
+		if route.RateLimit != nil {
+			setRateLimitDefaults(route.RateLimit)
+		}
+
 		// Cache defaults
 		if route.Cache != nil && route.Cache.Enabled {
 			if route.Cache.TTL == 0 {
@@ -170,10 +184,30 @@ func setDefaults(cfg *Config) {
 	}
 }
 
+func setRateLimitDefaults(cfg *RateLimitConfig) {
+	if cfg == nil {
+		return
+	}
+	if cfg.By == "" {
+		cfg.By = "ip"
+	}
+	if cfg.Enabled && cfg.Burst == 0 && cfg.RequestsPerSecond > 0 {
+		cfg.Burst = cfg.RequestsPerSecond
+	}
+}
+
 func validate(cfg *Config) error {
 	// Validate routes exist
 	if len(cfg.Routes) == 0 {
 		return fmt.Errorf("no routes defined")
+	}
+
+	if err := validateAdmin(cfg.Admin); err != nil {
+		return err
+	}
+
+	if err := validateRateLimit("global rate_limit", cfg.RateLimit); err != nil {
+		return err
 	}
 
 	// Validate TLS configuration
@@ -194,10 +228,15 @@ func validate(cfg *Config) error {
 	}
 
 	// Validate each route
+	routeNames := make(map[string]bool, len(cfg.Routes))
 	for i, route := range cfg.Routes {
 		if route.Name == "" {
 			return fmt.Errorf("route #%d: name is required", i)
 		}
+		if routeNames[route.Name] {
+			return fmt.Errorf("route %s: duplicate route name", route.Name)
+		}
+		routeNames[route.Name] = true
 
 		if route.Path == "" {
 			return fmt.Errorf("route %s: path is required", route.Name)
@@ -241,6 +280,10 @@ func validate(cfg *Config) error {
 			}
 		}
 
+		if err := validateRateLimit(fmt.Sprintf("route %s rate_limit", route.Name), route.RateLimit); err != nil {
+			return err
+		}
+
 		// Validate auth configuration
 		if route.Auth != nil {
 			validAuthTypes := map[string]bool{
@@ -275,6 +318,39 @@ func validate(cfg *Config) error {
 		}
 	}
 
+	return nil
+}
+
+func validateAdmin(cfg AdminConfig) error {
+	if cfg.RequireAuth && cfg.Token == "" {
+		return fmt.Errorf("admin.require_auth is true but admin.token is not specified")
+	}
+
+	for _, allowed := range cfg.AllowedCIDRs {
+		if ip := net.ParseIP(allowed); ip != nil {
+			continue
+		}
+		if _, _, err := net.ParseCIDR(allowed); err != nil {
+			return fmt.Errorf("invalid admin.allowed_cidrs value %q", allowed)
+		}
+	}
+
+	return nil
+}
+
+func validateRateLimit(label string, cfg *RateLimitConfig) error {
+	if cfg == nil || !cfg.Enabled {
+		return nil
+	}
+	if cfg.RequestsPerSecond <= 0 {
+		return fmt.Errorf("%s: requests_per_second must be greater than zero", label)
+	}
+	if cfg.Burst <= 0 {
+		return fmt.Errorf("%s: burst must be greater than zero", label)
+	}
+	if cfg.By != "ip" && cfg.By != "client_id" {
+		return fmt.Errorf("%s: by must be ip or client_id", label)
+	}
 	return nil
 }
 
