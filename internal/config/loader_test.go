@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 )
 
@@ -50,4 +51,37 @@ routes:
 	if _, err := Load(configPath); err != nil {
 		t.Fatalf("Load() returned error for require_either auth without type: %v", err)
 	}
+}
+
+func TestLoadRepositoryExamples(t *testing.T) {
+	root := repositoryRoot(t)
+	examples := []string{
+		"examples/basic/gonk.yaml",
+		"examples/industrial-iot/gonk.yaml",
+		"examples/microservices/gonk.yaml",
+		"examples/quickstart/gonk.yaml",
+		"configs/gonk.example.yaml",
+	}
+
+	t.Setenv("JWT_SECRET", "test-secret")
+	t.Setenv("DEVICE_KEY", "test-device-key")
+
+	for _, example := range examples {
+		t.Run(example, func(t *testing.T) {
+			if _, err := Load(filepath.Join(root, example)); err != nil {
+				t.Fatalf("Load(%s) returned error: %v", example, err)
+			}
+		})
+	}
+}
+
+func repositoryRoot(t *testing.T) string {
+	t.Helper()
+
+	_, filename, _, ok := runtime.Caller(0)
+	if !ok {
+		t.Fatal("failed to resolve test filename")
+	}
+
+	return filepath.Clean(filepath.Join(filepath.Dir(filename), "..", ".."))
 }

@@ -1,6 +1,9 @@
 <div align="center">
 <img src="gonk_logo.png" alt="GONK Logo" width="400">
 <br><br>
+
+[![CI](https://github.com/JustVugg/gonk/actions/workflows/ci.yml/badge.svg)](https://github.com/JustVugg/gonk/actions/workflows/ci.yml)
+
 </div>
 
 GONK is an edge-native API gateway written in Go for industrial, IoT, robotics, and air-gapped environments.
@@ -381,6 +384,18 @@ make demo-up
 make demo-token
 make demo-down
 ```
+
+## Testing
+
+GONK includes package-level Go tests for configuration loading, repository examples, JWT/API key/mTLS auth, cache behavior, rate limiting, request/response transforms, health endpoints, circuit breaker state transitions, load balancing, and HTTP proxy routing.
+
+```bash
+make test
+make test-coverage
+make test-race
+```
+
+The CI workflow runs coverage, uploads `coverage.out`, runs the race detector, builds binaries, and verifies the Docker image. See [docs/TESTING.md](docs/TESTING.md) for the current coverage focus and remaining test gaps.
 
 On Windows without make, use Go directly:
 

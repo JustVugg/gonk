@@ -1,9 +1,10 @@
-.PHONY: build build-server build-cli build-all clean test install docker-build demo-up demo-down demo-token help
+.PHONY: build build-server build-cli build-all clean test test-coverage test-race install docker-build demo-up demo-down demo-token help
 
 VERSION := 1.1.0
 BUILD_TIME := $(shell date -u +"%Y-%m-%dT%H:%M:%SZ" 2>/dev/null || echo "unknown")
 GIT_COMMIT := $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
 DEMO_COMPOSE := examples/quickstart/docker-compose.yml
+COVERAGE_FILE := coverage.out
 
 LDFLAGS := -X main.Version=$(VERSION) -X main.BuildTime=$(BUILD_TIME) -X main.GitCommit=$(GIT_COMMIT)
 
@@ -58,6 +59,15 @@ test:
 	@echo "Running tests..."
 	@go test -v ./...
 
+test-coverage:
+	@echo "Running tests with coverage..."
+	@go test -covermode=atomic -coverprofile=$(COVERAGE_FILE) ./...
+	@go tool cover -func=$(COVERAGE_FILE)
+
+test-race:
+	@echo "Running race detector..."
+	@go test -race ./...
+
 # Install locally (Linux/macOS only)
 install: build
 	@echo "Installing GONK..."
@@ -91,6 +101,8 @@ help:
 	@echo "  make build-cli    - Build CLI only"
 	@echo "  make build-all    - Build for all platforms (releases)"
 	@echo "  make test         - Run tests"
+	@echo "  make test-coverage - Run tests and write coverage.out"
+	@echo "  make test-race    - Run tests with the race detector"
 	@echo "  make clean        - Clean build artifacts"
 	@echo "  make install      - Install to /usr/local/bin (Linux/macOS)"
 	@echo "  make docker-build - Build Docker image"
