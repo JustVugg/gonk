@@ -7,6 +7,7 @@ on:
 
 permissions:
   contents: write
+  packages: write
 
 jobs:
   artifacts:
@@ -22,18 +23,50 @@ jobs:
           go-version: "1.21.x"
           cache: true
 
-      - name: Build all binaries
-        run: make build-all VERSION="${GITHUB_REF_NAME#v}"
-
-      - name: Create checksums
-        run: |
-          cd bin
-          sha256sum * > checksums.txt
+      - name: Build release packages
+        run: make package-release VERSION="${GITHUB_REF_NAME#v}"
 
       - name: Upload GitHub release assets
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            bin/gonk-*
-            bin/gonk-cli-*
-            bin/checksums.txt
+            dist/*
+
+  container:
+    name: Publish Container Image
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Resolve release variables
+        run: |
+          echo "RELEASE_VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"
+          echo "IMAGE_REPOSITORY=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_ENV"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: deployments/docker/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            ${{ env.IMAGE_REPOSITORY }}:${{ github.ref_name }}
+            ${{ env.IMAGE_REPOSITORY }}:${{ env.RELEASE_VERSION }}
+            ${{ env.IMAGE_REPOSITORY }}:latest
+          labels: |
+            org.opencontainers.image.title=GONK
+            org.opencontainers.image.description=Edge-native API gateway for industrial, IoT, robotics, and air-gapped environments
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.version=${{ env.RELEASE_VERSION }}

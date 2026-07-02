@@ -1,0 +1,91 @@
+server:
+  listen: ":8080"
+  http2: true
+  hot_reload: true
+  read_timeout: 30s
+  write_timeout: 30s
+  idle_timeout: 120s
+
+runtime:
+  environment: production
+
+logging:
+  level: info
+  format: json
+  output: stdout
+
+admin:
+  require_auth: true
+  header: "X-Gonk-Admin-Token"
+  token: "${GONK_ADMIN_TOKEN}"
+  allowed_cidrs:
+    - "127.0.0.1/32"
+    - "10.0.0.0/8"
+    - "172.16.0.0/12"
+    - "192.168.0.0/16"
+
+audit:
+  enabled: true
+
+metrics:
+  enabled: true
+  path: /metrics
+
+auth:
+  jwt:
+    enabled: true
+    secret_key: "${JWT_SECRET}"
+    header: "Authorization"
+    prefix: "Bearer"
+    expiry_check: true
+    validate_roles: true
+    validate_scopes: true
+
+  api_key:
+    enabled: true
+    header: "X-API-Key"
+    keys:
+      - key: "${API_KEY_1}"
+        client_id: "primary-client"
+        roles: ["service"]
+        scopes: ["read:api"]
+
+rate_limit:
+  enabled: true
+  requests_per_second: 100
+  burst: 200
+  by: "ip"
+
+routes:
+  - name: "app-api"
+    path: "/api/*"
+    methods: ["GET", "POST", "PUT", "DELETE"]
+    upstreams:
+      - url: "${UPSTREAM_URL}"
+        weight: 100
+        health_check: "/health"
+    protocol: "http"
+    strip_path: true
+
+    auth:
+      type: "jwt"
+      required: true
+      allowed_roles: ["admin", "service"]
+      required_scopes: ["read:api"]
+
+    rate_limit:
+      enabled: true
+      requests_per_second: 50
+      burst: 100
+      by: "ip"
+
+    circuit_breaker:
+      enabled: true
+      max_failures: 5
+      reset_timeout: 60s
+      half_open_max_reqs: 3
+
+    timeout:
+      connect: 5s
+      read: 30s
+      write: 30s

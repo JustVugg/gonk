@@ -20,7 +20,7 @@ It is designed for teams that need secure service exposure near devices without 
 - Built for operational workflows: templates, validation, hot reload, health endpoints, Prometheus metrics, and a companion CLI.
 - Operator guardrails: protected admin endpoints, audit logging, production secret checks, route introspection, and cache/status views.
 
-See [docs/SECURITY.md](docs/SECURITY.md) for the security model, [docs/OPERATIONS.md](docs/OPERATIONS.md) for day-two operations, and [docs/RELEASE.md](docs/RELEASE.md) for releases.
+See [docs/SECURITY.md](docs/SECURITY.md) for the security model, [docs/OPERATIONS.md](docs/OPERATIONS.md) for day-two operations, [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for production deployment, and [docs/RELEASE.md](docs/RELEASE.md) for releases.
 
 ## Best-Fit Use Cases
 
@@ -30,6 +30,14 @@ See [docs/SECURITY.md](docs/SECURITY.md) for the security model, [docs/OPERATION
 - Edge microservice stacks that need gateway features without a large platform footprint.
 
 For product positioning and startup strategy, see [docs/STARTUP_BRIEF.md](docs/STARTUP_BRIEF.md).
+
+## What's New in v1.2
+
+**Release and Deployment**
+- Ready-to-download Linux, Windows, and macOS release archives
+- GitHub Container Registry image publishing
+- Production Docker Compose template
+- systemd unit and production configuration template
 
 ## What's New in v1.1
 
@@ -54,6 +62,12 @@ Complete command-line interface for configuration, JWT/certificate generation, a
 
 ## Installation
 
+Download ready-to-run binaries from GitHub Releases:
+
+- Linux: `gonk_<version>_linux_amd64.tar.gz` or `gonk_<version>_linux_arm64.tar.gz`
+- Windows: `gonk_<version>_windows_amd64.zip` or `gonk_<version>_windows_arm64.zip`
+- macOS: `gonk_<version>_darwin_amd64.tar.gz` or `gonk_<version>_darwin_arm64.tar.gz`
+
 ```bash
 # Clone and build
 git clone https://github.com/JustVugg/gonk
@@ -63,6 +77,15 @@ make build
 # Binaries will be in bin/
 ./bin/gonk --version
 ./bin/gonk-cli --version
+```
+
+Or run the published container image:
+
+```bash
+docker run --rm -p 8080:8080 \
+  -v "$PWD/configs/gonk.production.yaml:/etc/gonk/gonk.yaml:ro" \
+  --env-file .env \
+  ghcr.io/justvugg/gonk:latest
 ```
 
 ## Quick Start

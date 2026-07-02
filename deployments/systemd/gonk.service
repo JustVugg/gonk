@@ -1,0 +1,26 @@
+[Unit]
+Description=GONK API Gateway
+Documentation=https://github.com/JustVugg/gonk
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=gonk
+Group=gonk
+EnvironmentFile=-/etc/gonk/gonk.env
+ExecStart=/usr/local/bin/gonk -config /etc/gonk/gonk.yaml
+Restart=on-failure
+RestartSec=5s
+LimitNOFILE=65535
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths=/var/log/gonk /var/lib/gonk
+CapabilityBoundingSet=CAP_NET_BIND_SERVICE
+AmbientCapabilities=CAP_NET_BIND_SERVICE
+
+[Install]
+WantedBy=multi-user.target

@@ -1,6 +1,6 @@
-.PHONY: build build-server build-cli build-all clean test test-coverage test-race install docker-build demo-up demo-down demo-token demo-smoke mtls-demo mtls-down help
+.PHONY: build build-server build-cli build-all package-release clean test test-coverage test-race install docker-build demo-up demo-down demo-token demo-smoke mtls-demo mtls-down help
 
-VERSION ?= 1.1.0
+VERSION ?= 1.2.0
 BUILD_TIME := $(shell date -u +"%Y-%m-%dT%H:%M:%SZ" 2>/dev/null || echo "unknown")
 GIT_COMMIT := $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
 DEMO_COMPOSE := examples/quickstart/docker-compose.yml
@@ -42,11 +42,17 @@ build-all:
 	# Windows AMD64
 	GOOS=windows GOARCH=amd64 go build -buildvcs=false -ldflags "$(LDFLAGS)" -o bin/gonk-windows-amd64.exe ./cmd/gonk
 	GOOS=windows GOARCH=amd64 go build -buildvcs=false -ldflags "$(LDFLAGS)" -o bin/gonk-cli-windows-amd64.exe ./cmd/gonk-cli
+	# Windows ARM64
+	GOOS=windows GOARCH=arm64 go build -buildvcs=false -ldflags "$(LDFLAGS)" -o bin/gonk-windows-arm64.exe ./cmd/gonk
+	GOOS=windows GOARCH=arm64 go build -buildvcs=false -ldflags "$(LDFLAGS)" -o bin/gonk-cli-windows-arm64.exe ./cmd/gonk-cli
 	# Linux ARM64 (Raspberry Pi 4, etc)
 	GOOS=linux GOARCH=arm64 go build -buildvcs=false -ldflags "$(LDFLAGS)" -o bin/gonk-linux-arm64 ./cmd/gonk
 	GOOS=linux GOARCH=arm64 go build -buildvcs=false -ldflags "$(LDFLAGS)" -o bin/gonk-cli-linux-arm64 ./cmd/gonk-cli
 	@echo "✅ All binaries built in bin/"
 	@ls -lh bin/ 2>/dev/null || dir bin
+
+package-release: build-all
+	@VERSION=$(VERSION) scripts/package-release.sh
 
 # Clean build artifacts
 clean:
@@ -109,6 +115,7 @@ help:
 	@echo "  make build-server - Build server only"
 	@echo "  make build-cli    - Build CLI only"
 	@echo "  make build-all    - Build for all platforms (releases)"
+	@echo "  make package-release - Build archived release packages in dist/"
 	@echo "  make test         - Run tests"
 	@echo "  make test-coverage - Run tests and write coverage.out"
 	@echo "  make test-race    - Run tests with the race detector"

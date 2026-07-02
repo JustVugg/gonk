@@ -1,0 +1,25 @@
+services:
+  gonk:
+    image: ${GONK_IMAGE:-ghcr.io/justvugg/gonk:latest}
+    restart: unless-stopped
+    command: ["-config", "/etc/gonk/gonk.yaml"]
+    env_file:
+      - ${GONK_ENV_FILE:-.env}
+    ports:
+      - "${GONK_HTTP_PORT:-8080}:8080"
+    volumes:
+      - ${GONK_CONFIG:-./configs/gonk.production.yaml}:/etc/gonk/gonk.yaml:ro
+      - ${GONK_CERTS_DIR:-./certs}:/etc/gonk/certs:ro
+    healthcheck:
+      test: ["CMD", "gonk-cli", "--url", "http://127.0.0.1:8080", "health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL

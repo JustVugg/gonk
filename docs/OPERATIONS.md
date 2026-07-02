@@ -120,6 +120,10 @@ For a clean Linux verification environment:
 docker run --rm -v "$PWD:/app" -w /app golang:1.21 go test ./...
 ```
 
+## Production Deploy
+
+See [DEPLOYMENT.md](DEPLOYMENT.md) for the release archives, GHCR image, Docker Compose production template, and systemd unit.
+
 ## Smoke Tests
 
 Run the quickstart smoke test locally:
