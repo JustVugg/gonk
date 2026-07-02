@@ -1,8 +1,5 @@
 <div align="center">
 <img src="gonk_logo.png" alt="GONK Logo" width="400">
-<br><br>
-
-[![CI](https://github.com/JustVugg/gonk/actions/workflows/ci.yml/badge.svg)](https://github.com/JustVugg/gonk/actions/workflows/ci.yml)
 
 </div>
 
@@ -35,7 +32,7 @@ For product positioning and startup strategy, see [docs/STARTUP_BRIEF.md](docs/S
 
 **Release and Deployment**
 - Ready-to-download Linux, Windows, and macOS release archives
-- GitHub Container Registry image publishing
+- GitHub Container Registry image availability
 - Production Docker Compose template
 - systemd unit and production configuration template
 
@@ -105,7 +102,7 @@ curl -H "Authorization: Bearer <token>" http://localhost:8080/api/ping
 
 See [examples/quickstart](examples/quickstart/) for the full demo with two upstream services and Prometheus.
 
-Run the CI-equivalent smoke test locally:
+Run the quickstart smoke test locally:
 
 ```bash
 make demo-smoke
@@ -470,7 +467,7 @@ make demo-up
 make demo-token
 make demo-down
 
-# CI-equivalent quickstart smoke test
+# Quickstart smoke test
 make demo-smoke
 
 # Full mTLS demo
@@ -487,7 +484,7 @@ make test-coverage
 make test-race
 ```
 
-The CI workflow runs coverage, uploads `coverage.out`, runs the race detector, builds binaries, and verifies the Docker image. See [docs/TESTING.md](docs/TESTING.md) for the current coverage focus and remaining test gaps.
+Before publishing a release, run coverage, the race detector, binary builds, and the Docker image build locally. See [docs/TESTING.md](docs/TESTING.md) for the current coverage focus and remaining test gaps.
 
 On Windows without make, use Go directly:
 

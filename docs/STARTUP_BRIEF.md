@@ -26,7 +26,7 @@ The narrow wedge is: "single-binary zero-control-plane gateway for secure edge n
 - Deeper docs for air-gapped admin access and certificate lifecycle operations.
 - Hardening tests for WebSocket/gRPC proxy behavior, config reload cleanup, and long-running health checks.
 - Fleet-level status/dashboard for multi-node deployments.
-- CI mTLS smoke test once runtime budget allows an additional Docker Compose stack.
+- Local or self-hosted mTLS smoke test once runtime budget allows an additional Docker Compose stack.
 
 ## Commercial Roadmap
 
@@ -36,8 +36,8 @@ The narrow wedge is: "single-binary zero-control-plane gateway for secure edge n
 
 ## First 30-Day Milestones
 
-- Keep `make build`, `make test`, `make demo-smoke`, and `make docker-build` passing in CI.
-- Publish a tagged release using the release workflow and verify checksums.
+- Keep `make build`, `make test`, `make demo-smoke`, and `make docker-build` passing locally before releases.
+- Publish a tagged release manually and verify checksums.
 - Add one complete industrial IoT walkthrough with mTLS, API key fallback, JWT operators, and Prometheus.
 - Add config reload stress tests for repeated route/upstream changes.
 - Add WebSocket and gRPC smoke tests with real upstream services.

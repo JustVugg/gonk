@@ -1,6 +1,6 @@
 # Deployment
 
-This guide covers production-style deployment with GitHub Releases, GHCR images, Docker Compose, and systemd.
+This guide covers production-style deployment with GitHub Releases, optional GHCR images, Docker Compose, and systemd.
 
 ## Release Artifacts
 
@@ -30,7 +30,7 @@ sha256sum -c checksums.txt --ignore-missing
 
 ## Container Image
 
-The release workflow publishes a multi-architecture image to GitHub Container Registry:
+When a container image has been published manually, pull it from GitHub Container Registry:
 
 ```bash
 docker pull ghcr.io/justvugg/gonk:latest

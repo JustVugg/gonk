@@ -44,4 +44,4 @@ make demo-smoke
 
 - WebSocket and gRPC proxy behavior.
 - Hot config reload behavior.
-- Full mTLS Docker Compose smoke test in CI when runtime budget allows it.
+- Full mTLS Docker Compose smoke test in local or self-hosted release checks when runtime budget allows it.
