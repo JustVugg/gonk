@@ -9,6 +9,29 @@ It is designed for teams that need secure service exposure near devices without 
 
 **Status:** community preview. The core gateway, auth, routing, load balancing, and observability features are in place; production hardening, benchmark coverage, and operator tooling are the next priority.
 
+## Try It In 2 Minutes
+
+```bash
+git clone https://github.com/JustVugg/gonk
+cd gonk
+make demo-up
+```
+
+Open another terminal and call the public route:
+
+```bash
+curl http://localhost:8080/public/ping
+```
+
+Generate a JWT and call the protected route:
+
+```bash
+make demo-token
+curl -H "Authorization: Bearer <token>" http://localhost:8080/api/ping
+```
+
+For ready-to-run binaries, download the latest Linux, Windows, or macOS archive from [GitHub Releases](https://github.com/JustVugg/gonk/releases/latest). See [docs/INSTALL.md](docs/INSTALL.md) for step-by-step install commands.
+
 ## Why GONK
 
 - Single Go binary plus YAML configuration.
@@ -17,7 +40,7 @@ It is designed for teams that need secure service exposure near devices without 
 - Built for operational workflows: templates, validation, hot reload, health endpoints, Prometheus metrics, and a companion CLI.
 - Operator guardrails: protected admin endpoints, audit logging, production secret checks, route introspection, and cache/status views.
 
-See [docs/SECURITY.md](docs/SECURITY.md) for the security model, [docs/OPERATIONS.md](docs/OPERATIONS.md) for day-two operations, [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for production deployment, and [docs/RELEASE.md](docs/RELEASE.md) for releases.
+See [docs/INSTALL.md](docs/INSTALL.md) for installation, [docs/SECURITY.md](docs/SECURITY.md) for the security model, [docs/OPERATIONS.md](docs/OPERATIONS.md) for day-two operations, [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for production deployment, and [docs/RELEASE.md](docs/RELEASE.md) for manual releases.
 
 ## Best-Fit Use Cases
 
@@ -59,7 +82,7 @@ Complete command-line interface for configuration, JWT/certificate generation, a
 
 ## Installation
 
-Download ready-to-run binaries from GitHub Releases:
+Download ready-to-run binaries from [GitHub Releases](https://github.com/JustVugg/gonk/releases/latest):
 
 - Linux: `gonk_<version>_linux_amd64.tar.gz` or `gonk_<version>_linux_arm64.tar.gz`
 - Windows: `gonk_<version>_windows_amd64.zip` or `gonk_<version>_windows_arm64.zip`
@@ -85,6 +108,8 @@ docker run --rm -p 8080:8080 \
   ghcr.io/justvugg/gonk:latest
 ```
 
+Detailed install commands are in [docs/INSTALL.md](docs/INSTALL.md).
+
 ## Quick Start
 
 Run the full Docker demo:
@@ -101,6 +126,8 @@ curl -H "Authorization: Bearer <token>" http://localhost:8080/api/ping
 ```
 
 See [examples/quickstart](examples/quickstart/) for the full demo with two upstream services and Prometheus.
+
+For a more realistic protected edge API, see [examples/secure-edge-api](examples/secure-edge-api/).
 
 Run the quickstart smoke test locally:
 

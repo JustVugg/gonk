@@ -15,8 +15,11 @@ make docker-build
 
 2. Build release archives locally:
 
+Replace `1.2.2` with the new version:
+
 ```bash
-make package-release VERSION=1.2.1
+VERSION=1.2.2
+make package-release VERSION="${VERSION}"
 ```
 
 3. Verify checksums locally:
@@ -30,11 +33,21 @@ cd ..
 4. Create and push a version tag:
 
 ```bash
-git tag v1.2.1
-git push origin v1.2.1
+VERSION=1.2.2
+git tag "v${VERSION}"
+git push origin "v${VERSION}"
 ```
 
 5. Create the GitHub release manually and upload every file from `dist/`.
+
+With GitHub CLI:
+
+```bash
+VERSION=1.2.2
+gh release create "v${VERSION}" dist/* \
+  --title "v${VERSION}" \
+  --notes "Manual release for v${VERSION}."
+```
 
 6. Verify the GitHub release contains:
 
@@ -64,4 +77,4 @@ docker build -f deployments/docker/Dockerfile -t ghcr.io/justvugg/gonk:v1.2.1 .
 docker push ghcr.io/justvugg/gonk:v1.2.1
 ```
 
-Run `make package-release VERSION=1.2.1` locally to inspect the exact archives before tagging.
+Run `make package-release VERSION="${VERSION}"` locally to inspect the exact archives before tagging.

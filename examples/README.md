@@ -5,6 +5,9 @@ The `examples/` directory contains runnable demos and complete configurations:
 **Quickstart Demo** (`examples/quickstart/`)
 Runs GONK, two backend services, and Prometheus with Docker Compose. This is the fastest way to try the project end to end.
 
+**Secure Edge API** (`examples/secure-edge-api/`)
+Runs a realistic protected API with public status, JWT authorization, admin protection, audit logs, metrics, rate limiting, cache, circuit breaker, and two upstream services.
+
 **mTLS Demo** (`examples/mtls/`)
 Generates a local CA plus signed server/client certificates, then runs GONK with client certificate authentication.
 

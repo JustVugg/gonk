@@ -1,0 +1,30 @@
+services:
+  gonk:
+    build:
+      context: ../..
+      dockerfile: deployments/docker/Dockerfile
+    environment:
+      JWT_SECRET: demo-secret-change-me
+      GONK_ADMIN_TOKEN: demo-admin-token
+    command: ["-config", "/etc/gonk/gonk.yaml"]
+    volumes:
+      - ./gonk.yaml:/etc/gonk/gonk.yaml:ro
+    ports:
+      - "8080:8080"
+    depends_on:
+      - machine-api-a
+      - machine-api-b
+
+  machine-api-a:
+    build:
+      context: ../..
+      dockerfile: deployments/docker/Dockerfile.backend
+    environment:
+      BACKEND_NAME: machine-api-a
+
+  machine-api-b:
+    build:
+      context: ../..
+      dockerfile: deployments/docker/Dockerfile.backend
+    environment:
+      BACKEND_NAME: machine-api-b

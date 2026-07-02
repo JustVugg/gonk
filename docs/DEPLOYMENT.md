@@ -28,6 +28,8 @@ Verify a download:
 sha256sum -c checksums.txt --ignore-missing
 ```
 
+For OS-specific install commands, see [INSTALL.md](INSTALL.md).
+
 ## Container Image
 
 When a container image has been published manually, pull it from GitHub Container Registry:
