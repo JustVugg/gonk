@@ -34,7 +34,7 @@ The release workflow publishes a multi-architecture image to GitHub Container Re
 
 ```bash
 docker pull ghcr.io/justvugg/gonk:latest
-docker pull ghcr.io/justvugg/gonk:v1.2.0
+docker pull ghcr.io/justvugg/gonk:v1.2.1
 ```
 
 Images are built for `linux/amd64` and `linux/arm64`.

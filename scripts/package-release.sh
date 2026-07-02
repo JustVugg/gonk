@@ -4,7 +4,7 @@ set -eu
 ROOT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 cd "$ROOT_DIR"
 
-VERSION="${VERSION:-1.2.0}"
+VERSION="${VERSION:-1.2.1}"
 BIN_DIR="${BIN_DIR:-bin}"
 DIST_DIR="${DIST_DIR:-dist}"
 

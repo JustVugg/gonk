@@ -1,6 +1,6 @@
 .PHONY: build build-server build-cli build-all package-release clean test test-coverage test-race install docker-build demo-up demo-down demo-token demo-smoke mtls-demo mtls-down help
 
-VERSION ?= 1.2.0
+VERSION ?= 1.2.1
 BUILD_TIME := $(shell date -u +"%Y-%m-%dT%H:%M:%SZ" 2>/dev/null || echo "unknown")
 GIT_COMMIT := $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
 DEMO_COMPOSE := examples/quickstart/docker-compose.yml
@@ -52,7 +52,7 @@ build-all:
 	@ls -lh bin/ 2>/dev/null || dir bin
 
 package-release: build-all
-	@VERSION=$(VERSION) scripts/package-release.sh
+	@VERSION=$(VERSION) sh scripts/package-release.sh
 
 # Clean build artifacts
 clean:

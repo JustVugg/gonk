@@ -17,8 +17,8 @@ make demo-smoke
 4. Create and push a version tag:
 
 ```bash
-git tag v1.2.0
-git push origin v1.2.0
+git tag v1.2.1
+git push origin v1.2.1
 ```
 
 5. Verify the GitHub release contains:
@@ -42,9 +42,9 @@ The release workflow builds Linux, macOS, and Windows binaries using `make packa
 It also publishes a multi-architecture image to GHCR:
 
 ```bash
-docker pull ghcr.io/justvugg/gonk:v1.2.0
-docker pull ghcr.io/justvugg/gonk:1.2.0
+docker pull ghcr.io/justvugg/gonk:v1.2.1
+docker pull ghcr.io/justvugg/gonk:1.2.1
 docker pull ghcr.io/justvugg/gonk:latest
 ```
 
-Run `make package-release VERSION=1.2.0` locally to inspect the exact archives before tagging.
+Run `make package-release VERSION=1.2.1` locally to inspect the exact archives before tagging.
