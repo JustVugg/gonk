@@ -366,6 +366,17 @@ make mtls-demo
 
 See [examples/mtls](examples/mtls/) for details.
 
+## Airgapped PKI
+
+For disconnected environments, GONK supports bring-your-own CA files and local offline certificate generation:
+
+```bash
+gonk-cli certs bootstrap --cn edge-gateway.local --client Device-001 --output ./certs
+gonk-cli certs doctor -c gonk.yaml --client-cert ./certs/client.crt --server-name edge-gateway.local
+```
+
+See [docs/AIRGAP_PKI.md](docs/AIRGAP_PKI.md) and [examples/airgap-pki](examples/airgap-pki/) for the full workflow.
+
 ### Configuration Templates
 
 ```bash

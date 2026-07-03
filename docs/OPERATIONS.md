@@ -139,3 +139,5 @@ Run the mTLS walkthrough:
 ```bash
 make mtls-demo
 ```
+
+For offline PKI bootstrap, validation, and certificate rotation, see [AIRGAP_PKI.md](AIRGAP_PKI.md).

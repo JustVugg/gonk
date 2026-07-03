@@ -3,6 +3,7 @@ package main
 import (
 	"crypto/rand"
 	"crypto/rsa"
+	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/base64"
@@ -15,6 +16,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -99,6 +101,23 @@ type routeStatusSummary struct {
 	Route          routeSummary           `json:"route"`
 	LoadBalancer   map[string]interface{} `json:"load_balancer"`
 	CircuitBreaker *breakerSummary        `json:"circuit_breaker"`
+}
+
+type certBootstrapOptions struct {
+	CommonName       string
+	ClientCommonName string
+	CACommonName     string
+	Output           string
+	Days             int
+	CADays           int
+	Force            bool
+}
+
+type certDoctorOptions struct {
+	ConfigPath     string
+	ClientCertFile string
+	ServerName     string
+	WarnDays       int
 }
 
 // Server management functions
@@ -707,6 +726,415 @@ func addSubjectAlternativeName(template *x509.Certificate, cn string) {
 		return
 	}
 	template.DNSNames = append(template.DNSNames, cn)
+}
+
+func bootstrapCertificates(opts certBootstrapOptions) error {
+	if opts.CommonName == "" {
+		return fmt.Errorf("--cn is required")
+	}
+	if opts.ClientCommonName == "" {
+		return fmt.Errorf("--client is required")
+	}
+	if opts.CACommonName == "" {
+		opts.CACommonName = "GONK Offline CA"
+	}
+	if opts.Output == "" {
+		opts.Output = "./certs"
+	}
+	if opts.Days <= 0 {
+		opts.Days = 365
+	}
+	if opts.CADays <= 0 {
+		opts.CADays = 3650
+	}
+
+	if err := os.MkdirAll(opts.Output, 0755); err != nil {
+		return fmt.Errorf("create output directory: %w", err)
+	}
+	if !opts.Force {
+		if err := ensureCertificateBundleDoesNotExist(opts.Output); err != nil {
+			return err
+		}
+	}
+
+	caCert, caKey, err := createCertificateMaterial(certificateRequest{
+		CommonName: opts.CACommonName,
+		Type:       "ca",
+		Days:       opts.CADays,
+	})
+	if err != nil {
+		return fmt.Errorf("generate CA: %w", err)
+	}
+	if err := writeCertificatePair(opts.Output, "ca", caCert.Raw, caKey, opts.Force); err != nil {
+		return err
+	}
+
+	serverCert, serverKey, err := createCertificateMaterial(certificateRequest{
+		CommonName: opts.CommonName,
+		Type:       "server",
+		Days:       opts.Days,
+		Parent:     caCert,
+		Signer:     caKey,
+	})
+	if err != nil {
+		return fmt.Errorf("generate server certificate: %w", err)
+	}
+	if err := writeCertificatePair(opts.Output, "server", serverCert.Raw, serverKey, opts.Force); err != nil {
+		return err
+	}
+
+	clientCert, clientKey, err := createCertificateMaterial(certificateRequest{
+		CommonName: opts.ClientCommonName,
+		Type:       "client",
+		Days:       opts.Days,
+		Parent:     caCert,
+		Signer:     caKey,
+	})
+	if err != nil {
+		return fmt.Errorf("generate client certificate: %w", err)
+	}
+	if err := writeCertificatePair(opts.Output, "client", clientCert.Raw, clientKey, opts.Force); err != nil {
+		return err
+	}
+
+	fmt.Println("✅ Offline PKI bundle generated")
+	fmt.Printf("   CA:     %s\n", filepath.Join(opts.Output, "ca.crt"))
+	fmt.Printf("   Server: %s / %s\n", filepath.Join(opts.Output, "server.crt"), filepath.Join(opts.Output, "server.key"))
+	fmt.Printf("   Client: %s / %s\n", filepath.Join(opts.Output, "client.crt"), filepath.Join(opts.Output, "client.key"))
+	fmt.Println("\nYAML snippet:")
+	fmt.Println("server:")
+	fmt.Println("  tls:")
+	fmt.Println("    enabled: true")
+	fmt.Println("    cert_file: \"/certs/server.crt\"")
+	fmt.Println("    key_file: \"/certs/server.key\"")
+	fmt.Println("    client_ca: \"/certs/ca.crt\"")
+	fmt.Println("    client_auth: \"require\"")
+	return nil
+}
+
+type certificateRequest struct {
+	CommonName string
+	Type       string
+	Days       int
+	Parent     *x509.Certificate
+	Signer     *rsa.PrivateKey
+}
+
+func createCertificateMaterial(req certificateRequest) (*x509.Certificate, *rsa.PrivateKey, error) {
+	if req.Days <= 0 {
+		req.Days = 365
+	}
+	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		return nil, nil, fmt.Errorf("generate private key: %w", err)
+	}
+	serialNumber, err := rand.Int(rand.Reader, new(big.Int).Lsh(big.NewInt(1), 128))
+	if err != nil {
+		return nil, nil, fmt.Errorf("generate serial number: %w", err)
+	}
+
+	template := x509.Certificate{
+		SerialNumber: serialNumber,
+		Subject: pkix.Name{
+			CommonName:   req.CommonName,
+			Organization: []string{"GONK"},
+		},
+		NotBefore:             time.Now().Add(-1 * time.Minute),
+		NotAfter:              time.Now().Add(time.Duration(req.Days) * 24 * time.Hour),
+		BasicConstraintsValid: true,
+	}
+
+	switch req.Type {
+	case "ca":
+		template.IsCA = true
+		template.KeyUsage = x509.KeyUsageCertSign | x509.KeyUsageCRLSign
+	case "server":
+		template.KeyUsage = x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature
+		template.ExtKeyUsage = []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth}
+		addSubjectAlternativeName(&template, req.CommonName)
+	case "client":
+		template.KeyUsage = x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature
+		template.ExtKeyUsage = []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth}
+	default:
+		return nil, nil, fmt.Errorf("unsupported certificate type: %s", req.Type)
+	}
+
+	parent := &template
+	signer := privateKey
+	if req.Parent != nil && req.Signer != nil {
+		parent = req.Parent
+		signer = req.Signer
+	}
+
+	certDER, err := x509.CreateCertificate(rand.Reader, &template, parent, &privateKey.PublicKey, signer)
+	if err != nil {
+		return nil, nil, fmt.Errorf("create certificate: %w", err)
+	}
+	cert, err := x509.ParseCertificate(certDER)
+	if err != nil {
+		return nil, nil, fmt.Errorf("parse generated certificate: %w", err)
+	}
+	return cert, privateKey, nil
+}
+
+func ensureCertificateBundleDoesNotExist(output string) error {
+	for _, name := range []string{"ca", "server", "client"} {
+		for _, ext := range []string{".crt", ".key"} {
+			path := filepath.Join(output, name+ext)
+			if _, err := os.Stat(path); err == nil {
+				return fmt.Errorf("%s already exists; pass --force to overwrite", path)
+			} else if !os.IsNotExist(err) {
+				return fmt.Errorf("check %s: %w", path, err)
+			}
+		}
+	}
+	return nil
+}
+
+func writeCertificatePair(output, name string, certDER []byte, key *rsa.PrivateKey, force bool) error {
+	certFile := filepath.Join(output, name+".crt")
+	keyFile := filepath.Join(output, name+".key")
+	if !force {
+		for _, path := range []string{certFile, keyFile} {
+			if _, err := os.Stat(path); err == nil {
+				return fmt.Errorf("%s already exists; pass --force to overwrite", path)
+			} else if !os.IsNotExist(err) {
+				return fmt.Errorf("check %s: %w", path, err)
+			}
+		}
+	}
+
+	if err := writePEMFile(certFile, 0644, &pem.Block{Type: "CERTIFICATE", Bytes: certDER}); err != nil {
+		return err
+	}
+	if err := writePEMFile(keyFile, 0600, &pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(key)}); err != nil {
+		return err
+	}
+	return nil
+}
+
+func writePEMFile(path string, mode os.FileMode, block *pem.Block) error {
+	file, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, mode)
+	if err != nil {
+		return fmt.Errorf("write %s: %w", path, err)
+	}
+	defer file.Close()
+	if err := pem.Encode(file, block); err != nil {
+		return fmt.Errorf("encode %s: %w", path, err)
+	}
+	return nil
+}
+
+func runCertsDoctor(opts certDoctorOptions) error {
+	if opts.ConfigPath == "" {
+		opts.ConfigPath = "gonk.yaml"
+	}
+	if opts.WarnDays <= 0 {
+		opts.WarnDays = 30
+	}
+
+	cfg, err := config.Load(opts.ConfigPath)
+	if err != nil {
+		return fmt.Errorf("load config: %w", err)
+	}
+
+	var failures []string
+	var warnings []string
+	fmt.Printf("GONK certificate doctor: %s\n", opts.ConfigPath)
+
+	tlsCfg := cfg.Server.TLS
+	if tlsCfg == nil || !tlsCfg.Enabled {
+		failures = append(failures, "server.tls.enabled is false or missing")
+		printDoctorResults(failures, warnings)
+		return fmt.Errorf("certificate doctor found %d error(s)", len(failures))
+	}
+
+	serverCert, err := readCertificateFile(tlsCfg.CertFile)
+	if err != nil {
+		failures = append(failures, fmt.Sprintf("server certificate: %v", err))
+	} else {
+		warnIfCertificateExpiresSoon(&warnings, "server certificate", serverCert, opts.WarnDays)
+	}
+
+	if _, err := tls.LoadX509KeyPair(tlsCfg.CertFile, tlsCfg.KeyFile); err != nil {
+		failures = append(failures, fmt.Sprintf("server cert/key pair: %v", err))
+	}
+
+	var roots *x509.CertPool
+	if tlsCfg.ClientCA != "" {
+		var caCert *x509.Certificate
+		roots, caCert, err = readCertificatePool(tlsCfg.ClientCA)
+		if err != nil {
+			failures = append(failures, fmt.Sprintf("client CA: %v", err))
+		} else {
+			if !caCert.IsCA {
+				failures = append(failures, "client CA certificate is not marked as a CA")
+			}
+			if err := validateCertificateTime(tlsCfg.ClientCA, caCert); err != nil {
+				failures = append(failures, fmt.Sprintf("client CA: %v", err))
+			} else {
+				warnIfCertificateExpiresSoon(&warnings, "client CA", caCert, opts.WarnDays)
+			}
+		}
+	} else if anyRouteNeedsClientCert(cfg.Routes) || tlsCfg.ClientAuth == "require" || tlsCfg.ClientAuth == "request" {
+		failures = append(failures, "server.tls.client_ca is required for mTLS routes or client_auth")
+	}
+
+	if serverCert != nil && roots != nil {
+		serverName := opts.ServerName
+		if serverName == "" {
+			serverName = inferServerName(serverCert)
+			if serverName == "" {
+				warnings = append(warnings, "server certificate has no DNS/IP SAN; pass --server-name to verify hostname explicitly")
+			}
+		}
+		verifyOptions := x509.VerifyOptions{
+			Roots:     roots,
+			DNSName:   serverName,
+			KeyUsages: []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
+		}
+		if _, err := serverCert.Verify(verifyOptions); err != nil {
+			failures = append(failures, fmt.Sprintf("server certificate CA/SAN verification: %v", err))
+		}
+	}
+
+	if opts.ClientCertFile != "" {
+		clientCert, err := readCertificateFile(opts.ClientCertFile)
+		if err != nil {
+			failures = append(failures, fmt.Sprintf("client certificate: %v", err))
+		} else {
+			warnIfCertificateExpiresSoon(&warnings, "client certificate", clientCert, opts.WarnDays)
+			if roots == nil {
+				failures = append(failures, "cannot verify client certificate without server.tls.client_ca")
+			} else if _, err := clientCert.Verify(x509.VerifyOptions{
+				Roots:     roots,
+				KeyUsages: []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth},
+			}); err != nil {
+				failures = append(failures, fmt.Sprintf("client certificate CA verification: %v", err))
+			}
+		}
+	}
+
+	if anyRouteNeedsClientCert(cfg.Routes) && tlsCfg.ClientAuth == "none" {
+		failures = append(failures, "one or more routes require client certificates but server.tls.client_auth is none")
+	}
+	if !anyRouteNeedsClientCert(cfg.Routes) && tlsCfg.ClientAuth == "require" {
+		warnings = append(warnings, "server requires client certificates, but no route explicitly uses mTLS/client_cert auth")
+	}
+
+	printDoctorResults(failures, warnings)
+	if len(failures) > 0 {
+		return fmt.Errorf("certificate doctor found %d error(s)", len(failures))
+	}
+	fmt.Println("✅ Certificate wiring looks ready for offline mTLS")
+	return nil
+}
+
+func readCertificateFile(path string) (*x509.Certificate, error) {
+	data, err := ioutil.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("read %s: %w", path, err)
+	}
+	block, _ := pem.Decode(data)
+	if block == nil {
+		return nil, fmt.Errorf("parse PEM %s", path)
+	}
+	cert, err := x509.ParseCertificate(block.Bytes)
+	if err != nil {
+		return nil, fmt.Errorf("parse certificate %s: %w", path, err)
+	}
+	if err := validateCertificateTime(path, cert); err != nil {
+		return nil, err
+	}
+	return cert, nil
+}
+
+func validateCertificateTime(path string, cert *x509.Certificate) error {
+	now := time.Now()
+	if now.Before(cert.NotBefore) {
+		return fmt.Errorf("%s is not valid until %s", path, cert.NotBefore.Format(time.RFC3339))
+	}
+	if now.After(cert.NotAfter) {
+		return fmt.Errorf("%s expired at %s", path, cert.NotAfter.Format(time.RFC3339))
+	}
+	return nil
+}
+
+func readCertificatePool(path string) (*x509.CertPool, *x509.Certificate, error) {
+	data, err := ioutil.ReadFile(path)
+	if err != nil {
+		return nil, nil, fmt.Errorf("read %s: %w", path, err)
+	}
+	pool := x509.NewCertPool()
+	var first *x509.Certificate
+	for {
+		var block *pem.Block
+		block, data = pem.Decode(data)
+		if block == nil {
+			break
+		}
+		if block.Type != "CERTIFICATE" {
+			continue
+		}
+		cert, err := x509.ParseCertificate(block.Bytes)
+		if err != nil {
+			return nil, nil, fmt.Errorf("parse certificate in %s: %w", path, err)
+		}
+		if first == nil {
+			first = cert
+		}
+		pool.AddCert(cert)
+	}
+	if first == nil {
+		return nil, nil, fmt.Errorf("no certificates found in %s", path)
+	}
+	return pool, first, nil
+}
+
+func warnIfCertificateExpiresSoon(warnings *[]string, label string, cert *x509.Certificate, warnDays int) {
+	if warnDays <= 0 {
+		return
+	}
+	remaining := time.Until(cert.NotAfter)
+	if remaining <= time.Duration(warnDays)*24*time.Hour {
+		*warnings = append(*warnings, fmt.Sprintf("%s expires at %s", label, cert.NotAfter.Format(time.RFC3339)))
+	}
+}
+
+func inferServerName(cert *x509.Certificate) string {
+	if len(cert.DNSNames) > 0 {
+		return cert.DNSNames[0]
+	}
+	if len(cert.IPAddresses) > 0 {
+		return cert.IPAddresses[0].String()
+	}
+	return ""
+}
+
+func anyRouteNeedsClientCert(routes []config.Route) bool {
+	for _, route := range routes {
+		if route.Auth == nil {
+			continue
+		}
+		if route.Auth.Type == "mtls" || route.Auth.RequireClientCert {
+			return true
+		}
+		for _, option := range route.Auth.RequireEither {
+			if option == "client_cert" || option == "mtls" {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func printDoctorResults(failures, warnings []string) {
+	for _, warning := range warnings {
+		fmt.Printf("⚠️  %s\n", warning)
+	}
+	for _, failure := range failures {
+		fmt.Printf("❌ %s\n", failure)
+	}
 }
 
 func showCertInfo(certFile string) {

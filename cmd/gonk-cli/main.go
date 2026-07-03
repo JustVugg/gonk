@@ -284,6 +284,54 @@ var certsInfoCmd = &cobra.Command{
 	},
 }
 
+var certsBootstrapCmd = &cobra.Command{
+	Use:   "bootstrap",
+	Short: "Generate an offline CA, server certificate, and client certificate",
+	Run: func(cmd *cobra.Command, args []string) {
+		cn, _ := cmd.Flags().GetString("cn")
+		clientCN, _ := cmd.Flags().GetString("client")
+		caCN, _ := cmd.Flags().GetString("ca-cn")
+		output, _ := cmd.Flags().GetString("output")
+		days, _ := cmd.Flags().GetInt("days")
+		caDays, _ := cmd.Flags().GetInt("ca-days")
+		force, _ := cmd.Flags().GetBool("force")
+
+		if err := bootstrapCertificates(certBootstrapOptions{
+			CommonName:       cn,
+			ClientCommonName: clientCN,
+			CACommonName:     caCN,
+			Output:           output,
+			Days:             days,
+			CADays:           caDays,
+			Force:            force,
+		}); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+	},
+}
+
+var certsDoctorCmd = &cobra.Command{
+	Use:   "doctor",
+	Short: "Validate TLS and mTLS certificate wiring for a GONK config",
+	Run: func(cmd *cobra.Command, args []string) {
+		configPath, _ := cmd.Flags().GetString("config")
+		clientCert, _ := cmd.Flags().GetString("client-cert")
+		serverName, _ := cmd.Flags().GetString("server-name")
+		warnDays, _ := cmd.Flags().GetInt("warn-days")
+
+		if err := runCertsDoctor(certDoctorOptions{
+			ConfigPath:     configPath,
+			ClientCertFile: clientCert,
+			ServerName:     serverName,
+			WarnDays:       warnDays,
+		}); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+	},
+}
+
 // Metrics command
 var metricsCmd = &cobra.Command{
 	Use:   "metrics",
@@ -408,9 +456,24 @@ func init() {
 
 	certsInfoCmd.Flags().StringP("cert", "c", "", "Certificate file")
 
+	certsBootstrapCmd.Flags().StringP("cn", "n", "localhost", "Server Common Name and DNS/IP SAN")
+	certsBootstrapCmd.Flags().String("client", "Device-001", "Client certificate Common Name")
+	certsBootstrapCmd.Flags().String("ca-cn", "GONK Offline CA", "CA certificate Common Name")
+	certsBootstrapCmd.Flags().StringP("output", "o", "./certs", "Output directory")
+	certsBootstrapCmd.Flags().Int("days", 365, "Server/client certificate validity in days")
+	certsBootstrapCmd.Flags().Int("ca-days", 3650, "CA certificate validity in days")
+	certsBootstrapCmd.Flags().Bool("force", false, "Overwrite existing generated files")
+
+	certsDoctorCmd.Flags().StringP("config", "c", "gonk.yaml", "Configuration file path")
+	certsDoctorCmd.Flags().String("client-cert", "", "Optional client certificate to verify against server.tls.client_ca")
+	certsDoctorCmd.Flags().String("server-name", "", "Expected server DNS name or IP for SAN verification")
+	certsDoctorCmd.Flags().Int("warn-days", 30, "Warn when certificates expire within this many days")
+
 	certsCmd.AddCommand(certsGenerateCmd)
 	certsCmd.AddCommand(certsValidateCmd)
 	certsCmd.AddCommand(certsInfoCmd)
+	certsCmd.AddCommand(certsBootstrapCmd)
+	certsCmd.AddCommand(certsDoctorCmd)
 
 	// Metrics flags
 	metricsCmd.Flags().StringP("route", "r", "", "Filter by route")

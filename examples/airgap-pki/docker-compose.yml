@@ -1,0 +1,20 @@
+services:
+  gonk:
+    build:
+      context: ../..
+      dockerfile: deployments/docker/Dockerfile
+    command: ["-config", "/etc/gonk/gonk.yaml"]
+    volumes:
+      - ./gonk.yaml:/etc/gonk/gonk.yaml:ro
+      - ./certs:/certs:ro
+    ports:
+      - "8443:8443"
+    depends_on:
+      - device-backend
+
+  device-backend:
+    build:
+      context: ../..
+      dockerfile: deployments/docker/Dockerfile.backend
+    environment:
+      BACKEND_NAME: airgap-device-backend

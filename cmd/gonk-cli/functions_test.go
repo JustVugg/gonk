@@ -36,6 +36,99 @@ func TestGenerateCertificateSignsServerAndClientWithCA(t *testing.T) {
 	}
 }
 
+func TestBootstrapCertificatesAndDoctor(t *testing.T) {
+	dir := t.TempDir()
+	certDir := filepath.Join(dir, "certs")
+
+	if err := bootstrapCertificates(certBootstrapOptions{
+		CommonName:       "edge.local",
+		ClientCommonName: "Device-001",
+		CACommonName:     "GONK Test Offline CA",
+		Output:           certDir,
+		Days:             365,
+		CADays:           3650,
+	}); err != nil {
+		t.Fatalf("bootstrapCertificates failed: %v", err)
+	}
+
+	configPath := filepath.Join(dir, "gonk.yaml")
+	writeFile(t, configPath, `server:
+  listen: ":8443"
+  tls:
+    enabled: true
+    cert_file: "`+filepath.ToSlash(filepath.Join(certDir, "server.crt"))+`"
+    key_file: "`+filepath.ToSlash(filepath.Join(certDir, "server.key"))+`"
+    client_ca: "`+filepath.ToSlash(filepath.Join(certDir, "ca.crt"))+`"
+    client_auth: "require"
+logging:
+  level: info
+  format: text
+  output: stdout
+routes:
+  - name: device-api
+    path: /device/*
+    methods: [GET]
+    upstreams:
+      - url: http://backend:3000
+    auth:
+      type: mtls
+      required: true
+`)
+
+	if err := runCertsDoctor(certDoctorOptions{
+		ConfigPath:     configPath,
+		ClientCertFile: filepath.Join(certDir, "client.crt"),
+		ServerName:     "edge.local",
+		WarnDays:       30,
+	}); err != nil {
+		t.Fatalf("runCertsDoctor failed: %v", err)
+	}
+}
+
+func TestCertsDoctorFailsWhenClientCAMissing(t *testing.T) {
+	dir := t.TempDir()
+	certDir := filepath.Join(dir, "certs")
+
+	if err := bootstrapCertificates(certBootstrapOptions{
+		CommonName:       "edge.local",
+		ClientCommonName: "Device-001",
+		Output:           certDir,
+	}); err != nil {
+		t.Fatalf("bootstrapCertificates failed: %v", err)
+	}
+
+	configPath := filepath.Join(dir, "gonk.yaml")
+	writeFile(t, configPath, `server:
+  listen: ":8443"
+  tls:
+    enabled: true
+    cert_file: "`+filepath.ToSlash(filepath.Join(certDir, "server.crt"))+`"
+    key_file: "`+filepath.ToSlash(filepath.Join(certDir, "server.key"))+`"
+    client_auth: "require"
+logging:
+  level: info
+  format: text
+  output: stdout
+routes:
+  - name: device-api
+    path: /device/*
+    methods: [GET]
+    upstreams:
+      - url: http://backend:3000
+    auth:
+      type: mtls
+      required: true
+`)
+
+	if err := runCertsDoctor(certDoctorOptions{
+		ConfigPath: configPath,
+		ServerName: "edge.local",
+		WarnDays:   30,
+	}); err == nil {
+		t.Fatal("runCertsDoctor should fail when client_ca is missing")
+	}
+}
+
 func readCertificate(t *testing.T, path string) *x509.Certificate {
 	t.Helper()
 
@@ -54,4 +147,11 @@ func readCertificate(t *testing.T, path string) *x509.Certificate {
 		t.Fatalf("failed to parse certificate %s: %v", path, err)
 	}
 	return cert
+}
+
+func writeFile(t *testing.T, path, contents string) {
+	t.Helper()
+	if err := os.WriteFile(path, []byte(contents), 0644); err != nil {
+		t.Fatalf("failed to write %s: %v", path, err)
+	}
 }

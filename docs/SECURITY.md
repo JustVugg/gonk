@@ -77,6 +77,15 @@ gonk-cli certs generate --type client --cn Device-001 --output ./certs --ca-cert
 
 For a complete runnable example, use `make mtls-demo`.
 
+For airgapped environments, prefer the dedicated bootstrap and validation flow:
+
+```bash
+gonk-cli certs bootstrap --cn edge-gateway.local --client Device-001 --output ./certs
+gonk-cli certs doctor -c gonk.yaml --client-cert ./certs/client.crt --server-name edge-gateway.local
+```
+
+See [AIRGAP_PKI.md](AIRGAP_PKI.md) for bootstrap order, trust-anchor handling, and rotation guidance.
+
 ## Audit Logging
 
 Enable route-level audit logs:
