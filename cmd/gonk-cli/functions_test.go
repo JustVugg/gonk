@@ -129,6 +129,77 @@ routes:
 	}
 }
 
+func TestRunDoctorAcceptsValidDevelopmentConfig(t *testing.T) {
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "gonk.yaml")
+	writeFile(t, configPath, `server:
+  listen: ":8080"
+logging:
+  level: info
+  format: text
+  output: stdout
+routes:
+  - name: public
+    path: /public/*
+    methods: [GET]
+    upstreams:
+      - url: http://backend:3000
+`)
+
+	if err := runDoctor(doctorOptions{ConfigPath: configPath}); err != nil {
+		t.Fatalf("runDoctor failed: %v", err)
+	}
+}
+
+func TestRunDoctorFailsWhenRouteJWTIsNotConfigured(t *testing.T) {
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "gonk.yaml")
+	writeFile(t, configPath, `server:
+  listen: ":8080"
+logging:
+  level: info
+  format: text
+  output: stdout
+routes:
+  - name: api
+    path: /api/*
+    methods: [GET]
+    upstreams:
+      - url: http://backend:3000
+    auth:
+      type: jwt
+      required: true
+`)
+
+	if err := runDoctor(doctorOptions{ConfigPath: configPath}); err == nil {
+		t.Fatal("runDoctor should fail when a route uses JWT without auth.jwt.enabled")
+	}
+}
+
+func TestRunDoctorFailsProductionWithoutAdminAuth(t *testing.T) {
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "gonk.yaml")
+	writeFile(t, configPath, `runtime:
+  environment: production
+server:
+  listen: ":8080"
+logging:
+  level: info
+  format: text
+  output: stdout
+routes:
+  - name: api
+    path: /api/*
+    methods: [GET]
+    upstreams:
+      - url: http://backend:3000
+`)
+
+	if err := runDoctor(doctorOptions{ConfigPath: configPath}); err == nil {
+		t.Fatal("runDoctor should fail when production admin auth is disabled")
+	}
+}
+
 func readCertificate(t *testing.T, path string) *x509.Certificate {
 	t.Helper()
 

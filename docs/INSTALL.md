@@ -10,6 +10,13 @@ https://github.com/JustVugg/gonk/releases/latest
 
 Release archives include `gonk`, the gateway server, and `gonk-cli`, the operator CLI.
 
+After installing, validate a config and run operational checks:
+
+```bash
+gonk-cli validate -c gonk.yaml
+gonk-cli doctor -c gonk.yaml
+```
+
 ## Linux
 
 Download the archive for your CPU:

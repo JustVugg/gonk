@@ -7,7 +7,7 @@ GONK is an edge-native API gateway written in Go for industrial, IoT, robotics, 
 
 It is designed for teams that need secure service exposure near devices without running a heavy control plane, a database dependency, or a full cloud gateway stack.
 
-**Status:** community preview. The core gateway, auth, routing, load balancing, and observability features are in place; production hardening, benchmark coverage, and operator tooling are the next priority.
+**Status:** community preview. The core gateway, auth, routing, load balancing, observability, operator checks, and manual release tooling are in place; production hardening and benchmark baselines continue to evolve.
 
 ## Try It In 2 Minutes
 
@@ -40,7 +40,7 @@ For ready-to-run binaries, download the latest Linux, Windows, or macOS archive 
 - Built for operational workflows: templates, validation, hot reload, health endpoints, Prometheus metrics, and a companion CLI.
 - Operator guardrails: protected admin endpoints, audit logging, production secret checks, route introspection, and cache/status views.
 
-See [docs/INSTALL.md](docs/INSTALL.md) for installation, [docs/SECURITY.md](docs/SECURITY.md) for the security model, [docs/OPERATIONS.md](docs/OPERATIONS.md) for day-two operations, [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for production deployment, and [docs/RELEASE.md](docs/RELEASE.md) for manual releases.
+See [docs/INSTALL.md](docs/INSTALL.md) for installation, [docs/SECURITY.md](docs/SECURITY.md) for the security model, [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md) for trust boundaries, [docs/OPERATIONS.md](docs/OPERATIONS.md) for day-two operations, [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for production deployment, [docs/BENCHMARKS.md](docs/BENCHMARKS.md) for local performance checks, and [docs/RELEASE.md](docs/RELEASE.md) for manual releases.
 
 ## Best-Fit Use Cases
 
@@ -298,6 +298,8 @@ Audit logs include route, method, path, status, duration, client IP, identity ty
 ```bash
 gonk -config gonk.yaml              # Start server
 gonk-cli validate -c gonk.yaml      # Validate configuration
+gonk-cli doctor -c gonk.yaml        # Static operational checks
+gonk-cli doctor -c gonk.yaml --check-admin --check-upstreams
 gonk-cli status                     # Check if server is running
 gonk-cli health                     # Server health check
 gonk-cli --url http://localhost:8080 routes list
@@ -388,6 +390,14 @@ gonk-cli init --template industrial --output gonk.yaml
 
 # Microservices template
 gonk-cli init --template microservices --output gonk.yaml
+```
+
+### Configuration Schema
+
+Use [docs/gonk.schema.json](docs/gonk.schema.json) with editors that support JSON Schema for YAML:
+
+```yaml
+# yaml-language-server: $schema=./docs/gonk.schema.json
 ```
 
 ## Industrial IoT Example
@@ -510,6 +520,12 @@ make demo-smoke
 
 # Full mTLS demo
 make mtls-demo
+
+# Local benchmark suite
+make bench
+
+# Manual pre-release verification, no GitHub Actions
+make release-check
 ```
 
 ## Testing
@@ -522,7 +538,7 @@ make test-coverage
 make test-race
 ```
 
-Before publishing a release, run coverage, the race detector, binary builds, and the Docker image build locally. See [docs/TESTING.md](docs/TESTING.md) for the current coverage focus and remaining test gaps.
+Before publishing a release, run coverage, the race detector, benchmarks, binary builds, and the Docker image build locally. See [docs/TESTING.md](docs/TESTING.md) for the current coverage focus, [docs/BENCHMARKS.md](docs/BENCHMARKS.md) for performance checks, and [docs/RELEASE.md](docs/RELEASE.md) for the manual release process.
 
 On Windows without make, use Go directly:
 

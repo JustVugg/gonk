@@ -9,6 +9,7 @@ go test ./...
 make test
 make test-coverage
 make test-race
+make bench
 ```
 
 Coverage output is written to `coverage.out` by `make test-coverage`.
@@ -25,6 +26,15 @@ Run the Docker Compose quickstart smoke test:
 ```bash
 make demo-smoke
 ```
+
+Run local performance checks:
+
+```bash
+make bench
+BENCH_TIME=10s make bench
+```
+
+See [BENCHMARKS.md](BENCHMARKS.md) for benchmark interpretation and release baselines.
 
 ## Current Coverage Focus
 

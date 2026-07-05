@@ -86,6 +86,8 @@ gonk-cli certs doctor -c gonk.yaml --client-cert ./certs/client.crt --server-nam
 
 See [AIRGAP_PKI.md](AIRGAP_PKI.md) for bootstrap order, trust-anchor handling, and rotation guidance.
 
+For trust boundaries and known limitations, see [THREAT_MODEL.md](THREAT_MODEL.md).
+
 ## Audit Logging
 
 Enable route-level audit logs:
@@ -106,4 +108,5 @@ Audit entries include route, method, path, status, duration, client IP, identity
 - Set `runtime.environment: production` and remove `runtime.allow_demo_secrets` for real deployments.
 - Enable `audit.enabled` for controlled environments and write logs to a protected sink.
 - Validate config with `gonk-cli validate -c gonk.yaml` before restart or hot reload.
+- Run `gonk-cli doctor -c gonk.yaml` before deploy, then `gonk-cli doctor -c gonk.yaml --check-admin --check-upstreams` after the gateway is running.
 - Run `gonk-cli status`, `gonk-cli routes list`, `gonk-cli routes describe <name>`, and `gonk-cli cache stats` after deployment.

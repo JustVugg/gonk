@@ -4,16 +4,19 @@ GONK releases are created manually to avoid GitHub Actions usage.
 
 ## Checklist
 
-1. Run local verification:
+1. Run local release verification:
 
 ```bash
-make test
-make build
-make demo-smoke
-make docker-build
+make release-check VERSION=1.2.2
 ```
 
-2. Build release archives locally:
+This runs tests, benchmarks, builds binaries, packages archives, verifies checksums, and builds the Docker image. If Docker is not available on the release machine:
+
+```bash
+SKIP_DOCKER=1 make release-check VERSION=1.2.2
+```
+
+2. If you need to rebuild only the release archives:
 
 Replace `1.2.2` with the new version:
 
@@ -53,6 +56,8 @@ gh release create "v${VERSION}" dist/* \
 
 - archived Linux, macOS, and Windows packages;
 - `checksums.txt`.
+
+No GitHub Actions workflow is required for this release process.
 
 ## Artifacts
 

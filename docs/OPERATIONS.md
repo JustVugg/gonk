@@ -30,6 +30,23 @@ Health endpoints are intentionally simple for process supervisors and container 
 
 `gonk-cli status` uses `/_gonk/status` and includes runtime mode, admin protection, audit state, route summaries, upstreams, cache totals, and circuit breaker state.
 
+## Doctor
+
+Run static operational checks before deploying or reloading config:
+
+```bash
+gonk-cli doctor -c gonk.yaml
+```
+
+When GONK is running, check the live admin endpoint and HTTP/HTTPS upstream reachability:
+
+```bash
+export GONK_ADMIN_TOKEN="..."
+gonk-cli --url http://edge-gateway.local:8080 doctor -c gonk.yaml --check-admin --check-upstreams
+```
+
+The doctor reports blocking errors for invalid auth wiring, missing production admin protection, broken TLS files, and unreachable live checks when those checks are requested. It reports warnings for items that may be valid in some deployments, such as metrics on an unprotected network or production TLS termination outside GONK.
+
 ## Routes
 
 Runtime route introspection is available through the CLI:
@@ -111,6 +128,7 @@ Before restart, reload, or rollout:
 
 ```bash
 gonk-cli validate -c gonk.yaml
+gonk-cli doctor -c gonk.yaml
 go test ./...
 ```
 

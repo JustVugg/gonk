@@ -1,0 +1,568 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/JustVugg/gonk/main/docs/gonk.schema.json",
+  "title": "GONK configuration",
+  "description": "JSON Schema for gonk.yaml and gonk.json.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "server": {
+      "$ref": "#/$defs/server"
+    },
+    "runtime": {
+      "$ref": "#/$defs/runtime"
+    },
+    "admin": {
+      "$ref": "#/$defs/admin"
+    },
+    "audit": {
+      "$ref": "#/$defs/audit"
+    },
+    "logging": {
+      "$ref": "#/$defs/logging"
+    },
+    "auth": {
+      "$ref": "#/$defs/auth"
+    },
+    "rate_limit": {
+      "$ref": "#/$defs/rateLimit"
+    },
+    "metrics": {
+      "$ref": "#/$defs/metrics"
+    },
+    "routes": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/route"
+      }
+    }
+  },
+  "required": ["routes"],
+  "$defs": {
+    "duration": {
+      "description": "Go duration string such as 250ms, 5s, 1m, or 1h. Numeric values are accepted for JSON nanosecond durations.",
+      "type": ["string", "integer"]
+    },
+    "stringMap": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string"
+      }
+    },
+    "server": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "listen": {
+          "type": "string",
+          "examples": [":8080", "127.0.0.1:8080"]
+        },
+        "http2": {
+          "type": "boolean"
+        },
+        "hot_reload": {
+          "type": "boolean"
+        },
+        "read_timeout": {
+          "$ref": "#/$defs/duration"
+        },
+        "write_timeout": {
+          "$ref": "#/$defs/duration"
+        },
+        "idle_timeout": {
+          "$ref": "#/$defs/duration"
+        },
+        "cors": {
+          "$ref": "#/$defs/cors"
+        },
+        "tls": {
+          "$ref": "#/$defs/tls"
+        }
+      }
+    },
+    "runtime": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "environment": {
+          "type": "string",
+          "enum": ["development", "test", "staging", "production"]
+        },
+        "allow_demo_secrets": {
+          "type": "boolean"
+        }
+      }
+    },
+    "admin": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "require_auth": {
+          "type": "boolean"
+        },
+        "header": {
+          "type": "string"
+        },
+        "token": {
+          "type": "string"
+        },
+        "allowed_cidrs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "audit": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        }
+      }
+    },
+    "cors": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "allowed_origins": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "allowed_methods": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/httpMethod"
+          }
+        },
+        "allowed_headers": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "max_age": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "tls": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "cert_file": {
+          "type": "string"
+        },
+        "key_file": {
+          "type": "string"
+        },
+        "client_ca": {
+          "type": "string"
+        },
+        "client_auth": {
+          "type": "string",
+          "enum": ["none", "request", "require"]
+        }
+      }
+    },
+    "logging": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "level": {
+          "type": "string",
+          "enum": ["debug", "info", "warn", "error"]
+        },
+        "format": {
+          "type": "string",
+          "enum": ["text", "json"]
+        },
+        "output": {
+          "type": "string"
+        }
+      }
+    },
+    "auth": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "jwt": {
+          "$ref": "#/$defs/jwt"
+        },
+        "api_key": {
+          "$ref": "#/$defs/apiKeyAuth"
+        }
+      }
+    },
+    "jwt": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "secret_key": {
+          "type": "string"
+        },
+        "header": {
+          "type": "string"
+        },
+        "prefix": {
+          "type": "string"
+        },
+        "expiry_check": {
+          "type": "boolean"
+        },
+        "validate_roles": {
+          "type": "boolean"
+        },
+        "validate_scopes": {
+          "type": "boolean"
+        }
+      }
+    },
+    "apiKeyAuth": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "header": {
+          "type": "string"
+        },
+        "keys": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/apiKey"
+          }
+        }
+      }
+    },
+    "apiKey": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "key": {
+          "type": "string"
+        },
+        "client_id": {
+          "type": "string"
+        },
+        "roles": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "scopes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": ["key", "client_id"]
+    },
+    "rateLimit": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "requests_per_second": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "burst": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "by": {
+          "type": "string",
+          "enum": ["ip", "client_id"]
+        }
+      }
+    },
+    "metrics": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "path": {
+          "type": "string"
+        }
+      }
+    },
+    "route": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "path": {
+          "type": "string",
+          "examples": ["/api/*", "/health"]
+        },
+        "methods": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/httpMethod"
+          }
+        },
+        "upstream": {
+          "type": "string"
+        },
+        "upstreams": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/upstream"
+          }
+        },
+        "load_balancing": {
+          "$ref": "#/$defs/loadBalancing"
+        },
+        "protocol": {
+          "type": "string",
+          "enum": ["http", "https", "ws", "wss", "grpc"]
+        },
+        "strip_path": {
+          "type": "boolean"
+        },
+        "auth": {
+          "$ref": "#/$defs/routeAuth"
+        },
+        "rate_limit": {
+          "$ref": "#/$defs/rateLimit"
+        },
+        "circuit_breaker": {
+          "$ref": "#/$defs/circuitBreaker"
+        },
+        "cache": {
+          "$ref": "#/$defs/cache"
+        },
+        "transform": {
+          "$ref": "#/$defs/transform"
+        },
+        "headers": {
+          "$ref": "#/$defs/stringMap"
+        },
+        "timeout": {
+          "$ref": "#/$defs/timeout"
+        }
+      },
+      "required": ["name", "path"],
+      "anyOf": [
+        {
+          "required": ["upstream"]
+        },
+        {
+          "required": ["upstreams"]
+        }
+      ]
+    },
+    "upstream": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "url": {
+          "type": "string"
+        },
+        "weight": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "health_check": {
+          "type": "string"
+        }
+      },
+      "required": ["url"]
+    },
+    "loadBalancing": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "strategy": {
+          "type": "string",
+          "enum": ["round-robin", "weighted", "least-connections", "ip-hash"]
+        },
+        "health_check_interval": {
+          "$ref": "#/$defs/duration"
+        },
+        "health_check_timeout": {
+          "$ref": "#/$defs/duration"
+        }
+      }
+    },
+    "routeAuth": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["jwt", "api_key", "mtls", "none"]
+        },
+        "required": {
+          "type": "boolean"
+        },
+        "allowed_roles": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "required_scopes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "permissions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/permission"
+          }
+        },
+        "require_client_cert": {
+          "type": "boolean"
+        },
+        "cert_to_role_mapping": {
+          "$ref": "#/$defs/stringMap"
+        },
+        "require_either": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": ["jwt", "api_key", "client_cert", "mtls"]
+          }
+        }
+      }
+    },
+    "permission": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "role": {
+          "type": "string"
+        },
+        "identity_type": {
+          "type": "string",
+          "enum": ["device", "user"]
+        },
+        "methods": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/httpMethod"
+          }
+        },
+        "scopes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": ["methods"]
+    },
+    "circuitBreaker": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "max_failures": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "reset_timeout": {
+          "$ref": "#/$defs/duration"
+        },
+        "half_open_max_reqs": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "cache": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "ttl": {
+          "$ref": "#/$defs/duration"
+        },
+        "methods": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/httpMethod"
+          }
+        }
+      }
+    },
+    "transform": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "request": {
+          "$ref": "#/$defs/transformRule"
+        },
+        "response": {
+          "$ref": "#/$defs/transformRule"
+        }
+      }
+    },
+    "transformRule": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "add_headers": {
+          "$ref": "#/$defs/stringMap"
+        },
+        "remove_headers": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "timeout": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "connect": {
+          "$ref": "#/$defs/duration"
+        },
+        "read": {
+          "$ref": "#/$defs/duration"
+        },
+        "write": {
+          "$ref": "#/$defs/duration"
+        }
+      }
+    },
+    "httpMethod": {
+      "type": "string",
+      "enum": ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"]
+    }
+  }
+}

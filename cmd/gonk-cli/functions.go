@@ -14,6 +14,7 @@ import (
 	"math/big"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -117,6 +118,14 @@ type certDoctorOptions struct {
 	ConfigPath     string
 	ClientCertFile string
 	ServerName     string
+	WarnDays       int
+}
+
+type doctorOptions struct {
+	ConfigPath     string
+	CheckAdmin     bool
+	CheckUpstreams bool
+	Timeout        time.Duration
 	WarnDays       int
 }
 
@@ -231,6 +240,249 @@ func showConfig(configPath string) {
 
 	data, _ := yaml.Marshal(cfg)
 	fmt.Println(string(data))
+}
+
+func runDoctor(opts doctorOptions) error {
+	if opts.ConfigPath == "" {
+		opts.ConfigPath = "gonk.yaml"
+	}
+	if opts.Timeout <= 0 {
+		opts.Timeout = 2 * time.Second
+	}
+	if opts.WarnDays <= 0 {
+		opts.WarnDays = 30
+	}
+
+	fmt.Printf("GONK doctor: %s\n", opts.ConfigPath)
+
+	cfg, err := config.Load(opts.ConfigPath)
+	if err != nil {
+		failures := []string{fmt.Sprintf("config validation failed: %v", err)}
+		printDoctorResults(failures, nil)
+		return fmt.Errorf("doctor found %d error(s)", len(failures))
+	}
+
+	var failures []string
+	var warnings []string
+
+	addRuntimeDoctorFindings(cfg, &failures, &warnings)
+	addRouteDoctorFindings(cfg, &failures, &warnings)
+	addTLSDomainFindings(cfg, opts.WarnDays, &failures, &warnings)
+
+	if opts.CheckUpstreams {
+		addUpstreamDoctorFindings(cfg, opts.Timeout, &failures, &warnings)
+	} else {
+		warnings = append(warnings, "upstream reachability was not checked; pass --check-upstreams to probe HTTP/HTTPS upstreams")
+	}
+
+	if opts.CheckAdmin {
+		addAdminDoctorFindings(opts.Timeout, &failures, &warnings)
+	} else {
+		warnings = append(warnings, "live admin endpoint was not checked; pass --check-admin with --url and GONK_ADMIN_TOKEN if needed")
+	}
+
+	printDoctorResults(failures, warnings)
+	if len(failures) > 0 {
+		return fmt.Errorf("doctor found %d error(s)", len(failures))
+	}
+
+	fmt.Printf("✅ GONK config looks operational (%d route(s))\n", len(cfg.Routes))
+	return nil
+}
+
+func addRuntimeDoctorFindings(cfg *config.Config, failures, warnings *[]string) {
+	if cfg.Runtime.Environment == "production" {
+		if !cfg.Admin.RequireAuth {
+			*failures = append(*failures, "production config should enable admin.require_auth")
+		}
+		if cfg.Admin.RequireAuth && len(cfg.Admin.AllowedCIDRs) == 0 {
+			*warnings = append(*warnings, "production admin auth has no admin.allowed_cidrs allowlist")
+		}
+		if !cfg.Audit.Enabled {
+			*warnings = append(*warnings, "production audit logging is disabled")
+		}
+		if cfg.Server.TLS == nil || !cfg.Server.TLS.Enabled {
+			*warnings = append(*warnings, "production server TLS is disabled; use only behind a trusted TLS terminator")
+		}
+	}
+
+	if cfg.Metrics.Enabled && !cfg.Admin.RequireAuth {
+		*warnings = append(*warnings, "metrics are enabled while admin auth is disabled; expose /metrics only on trusted networks")
+	}
+}
+
+func addRouteDoctorFindings(cfg *config.Config, failures, warnings *[]string) {
+	for _, route := range cfg.Routes {
+		if routeUsesAuth(route, "jwt") && (cfg.Auth.JWT == nil || !cfg.Auth.JWT.Enabled) {
+			*failures = append(*failures, fmt.Sprintf("route %s uses JWT auth but auth.jwt.enabled is not true", route.Name))
+		}
+		if routeUsesAuth(route, "api_key") && (cfg.Auth.APIKey == nil || !cfg.Auth.APIKey.Enabled) {
+			*failures = append(*failures, fmt.Sprintf("route %s uses API key auth but auth.api_key.enabled is not true", route.Name))
+		}
+		if anyRouteNeedsClientCert([]config.Route{route}) {
+			if cfg.Server.TLS == nil || !cfg.Server.TLS.Enabled {
+				*failures = append(*failures, fmt.Sprintf("route %s requires client certificates but server.tls.enabled is not true", route.Name))
+			} else if cfg.Server.TLS.ClientCA == "" {
+				*failures = append(*failures, fmt.Sprintf("route %s requires client certificates but server.tls.client_ca is empty", route.Name))
+			}
+		}
+		if route.Protocol == "grpc" && !cfg.Server.HTTP2 {
+			*warnings = append(*warnings, fmt.Sprintf("route %s uses grpc while server.http2 is disabled", route.Name))
+		}
+		if cfg.Runtime.Environment == "production" && !routeHasAccessControl(route) {
+			*warnings = append(*warnings, fmt.Sprintf("production route %s has no route auth guard", route.Name))
+		}
+	}
+}
+
+func addTLSDomainFindings(cfg *config.Config, warnDays int, failures, warnings *[]string) {
+	tlsCfg := cfg.Server.TLS
+	if tlsCfg == nil || !tlsCfg.Enabled {
+		return
+	}
+
+	serverCert, err := readCertificateFile(tlsCfg.CertFile)
+	if err != nil {
+		*failures = append(*failures, fmt.Sprintf("server TLS certificate: %v", err))
+	} else {
+		warnIfCertificateExpiresSoon(warnings, "server TLS certificate", serverCert, warnDays)
+	}
+
+	if _, err := tls.LoadX509KeyPair(tlsCfg.CertFile, tlsCfg.KeyFile); err != nil {
+		*failures = append(*failures, fmt.Sprintf("server TLS cert/key pair: %v", err))
+	}
+
+	if tlsCfg.ClientCA != "" {
+		_, caCert, err := readCertificatePool(tlsCfg.ClientCA)
+		if err != nil {
+			*failures = append(*failures, fmt.Sprintf("client CA: %v", err))
+			return
+		}
+		if !caCert.IsCA {
+			*failures = append(*failures, "client CA certificate is not marked as a CA")
+		}
+		warnIfCertificateExpiresSoon(warnings, "client CA", caCert, warnDays)
+	}
+}
+
+func addUpstreamDoctorFindings(cfg *config.Config, timeout time.Duration, failures, warnings *[]string) {
+	client := &http.Client{Timeout: timeout}
+	for _, route := range cfg.Routes {
+		for _, upstream := range route.Upstreams {
+			if route.Protocol == "grpc" {
+				*warnings = append(*warnings, fmt.Sprintf("route %s uses grpc; live upstream probe skipped", route.Name))
+				continue
+			}
+			checkURL := upstreamProbeURL(upstream)
+			parsed, err := url.Parse(checkURL)
+			if err != nil || parsed.Scheme == "" || parsed.Host == "" {
+				*failures = append(*failures, fmt.Sprintf("route %s upstream %s is not a valid URL", route.Name, checkURL))
+				continue
+			}
+			if parsed.Scheme != "http" && parsed.Scheme != "https" {
+				*warnings = append(*warnings, fmt.Sprintf("route %s upstream %s uses %s; live probe skipped", route.Name, upstream.URL, parsed.Scheme))
+				continue
+			}
+
+			req, err := http.NewRequest(http.MethodGet, checkURL, nil)
+			if err != nil {
+				*failures = append(*failures, fmt.Sprintf("route %s upstream %s request build failed: %v", route.Name, checkURL, err))
+				continue
+			}
+			resp, err := client.Do(req)
+			if err != nil {
+				*failures = append(*failures, fmt.Sprintf("route %s upstream %s is unreachable: %v", route.Name, checkURL, err))
+				continue
+			}
+			resp.Body.Close()
+
+			if resp.StatusCode >= 500 {
+				*failures = append(*failures, fmt.Sprintf("route %s upstream %s returned HTTP %d", route.Name, checkURL, resp.StatusCode))
+			} else if resp.StatusCode >= 400 {
+				*warnings = append(*warnings, fmt.Sprintf("route %s upstream %s returned HTTP %d", route.Name, checkURL, resp.StatusCode))
+			}
+		}
+	}
+}
+
+func addAdminDoctorFindings(timeout time.Duration, failures, warnings *[]string) {
+	client := &http.Client{Timeout: timeout}
+	req, err := newAdminRequest(http.MethodGet, "/_gonk/status", nil)
+	if err != nil {
+		*failures = append(*failures, fmt.Sprintf("admin status request failed: %v", err))
+		return
+	}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		*failures = append(*failures, fmt.Sprintf("admin status endpoint is unreachable at %s: %v", gonkEndpoint("/_gonk/status"), err))
+		return
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode >= 400 {
+		body, _ := ioutil.ReadAll(resp.Body)
+		*failures = append(*failures, fmt.Sprintf("admin status endpoint returned HTTP %d %s", resp.StatusCode, strings.TrimSpace(string(body))))
+		return
+	}
+
+	var status statusResponse
+	if err := json.NewDecoder(resp.Body).Decode(&status); err != nil {
+		*failures = append(*failures, fmt.Sprintf("admin status response could not be decoded: %v", err))
+		return
+	}
+
+	if !status.AdminProtected {
+		*warnings = append(*warnings, "live gateway reports admin endpoints are not protected")
+	}
+	if status.Version != "" && status.Version != Version {
+		*warnings = append(*warnings, fmt.Sprintf("CLI version %s differs from live gateway version %s", Version, status.Version))
+	}
+	if status.Health.Status != "" && status.Health.Status != "healthy" && status.Health.Status != "ok" {
+		*warnings = append(*warnings, fmt.Sprintf("live gateway health status is %s", status.Health.Status))
+	}
+}
+
+func routeUsesAuth(route config.Route, authType string) bool {
+	if route.Auth == nil {
+		return false
+	}
+	if route.Auth.Type == authType {
+		return true
+	}
+	for _, option := range route.Auth.RequireEither {
+		if option == authType {
+			return true
+		}
+		if authType == "mtls" && (option == "client_cert" || option == "mtls") {
+			return true
+		}
+	}
+	return false
+}
+
+func routeHasAccessControl(route config.Route) bool {
+	if route.Auth == nil {
+		return false
+	}
+	if route.Auth.Type != "" && route.Auth.Type != "none" && route.Auth.Required {
+		return true
+	}
+	return route.Auth.RequireClientCert ||
+		len(route.Auth.RequireEither) > 0 ||
+		len(route.Auth.AllowedRoles) > 0 ||
+		len(route.Auth.RequiredScopes) > 0 ||
+		len(route.Auth.Permissions) > 0
+}
+
+func upstreamProbeURL(upstream config.Upstream) string {
+	if upstream.HealthCheck == "" {
+		return upstream.URL
+	}
+	if strings.HasPrefix(upstream.HealthCheck, "http://") || strings.HasPrefix(upstream.HealthCheck, "https://") {
+		return upstream.HealthCheck
+	}
+	return strings.TrimRight(upstream.URL, "/") + "/" + strings.TrimLeft(upstream.HealthCheck, "/")
 }
 
 // Route management

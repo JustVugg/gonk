@@ -46,4 +46,5 @@ make mtls-demo
 Validate before deploying:
 ```bash
 ./bin/gonk-cli validate -c examples/microservices/gonk.yaml
+./bin/gonk-cli doctor -c examples/microservices/gonk.yaml
 ```

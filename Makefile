@@ -1,4 +1,4 @@
-.PHONY: build build-server build-cli build-all package-release clean test test-coverage test-race install docker-build demo-up demo-down demo-token demo-smoke mtls-demo mtls-down help
+.PHONY: build build-server build-cli build-all package-release release-check clean test test-coverage test-race bench install docker-build demo-up demo-down demo-token demo-smoke mtls-demo mtls-down help
 
 VERSION ?= 1.2.1
 BUILD_TIME := $(shell date -u +"%Y-%m-%dT%H:%M:%SZ" 2>/dev/null || echo "unknown")
@@ -54,6 +54,9 @@ build-all:
 package-release: build-all
 	@VERSION=$(VERSION) sh scripts/package-release.sh
 
+release-check:
+	@VERSION=$(VERSION) sh scripts/release/check.sh
+
 # Clean build artifacts
 clean:
 	@echo "Cleaning..."
@@ -73,6 +76,9 @@ test-coverage:
 test-race:
 	@echo "Running race detector..."
 	@go test -race ./...
+
+bench:
+	@sh scripts/bench/local.sh
 
 # Install locally (Linux/macOS only)
 install: build
@@ -116,9 +122,11 @@ help:
 	@echo "  make build-cli    - Build CLI only"
 	@echo "  make build-all    - Build for all platforms (releases)"
 	@echo "  make package-release - Build archived release packages in dist/"
+	@echo "  make release-check - Run local release verification without GitHub Actions"
 	@echo "  make test         - Run tests"
 	@echo "  make test-coverage - Run tests and write coverage.out"
 	@echo "  make test-race    - Run tests with the race detector"
+	@echo "  make bench        - Run local Go benchmarks"
 	@echo "  make clean        - Clean build artifacts"
 	@echo "  make install      - Install to /usr/local/bin (Linux/macOS)"
 	@echo "  make docker-build - Build Docker image"

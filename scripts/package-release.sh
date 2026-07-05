@@ -85,8 +85,9 @@ package_zip() {
 	package_dir="$DIST_DIR/$package_name"
 
 	if ! command -v zip >/dev/null 2>&1; then
-		echo "zip is required to create Windows release archives" >&2
-		exit 1
+		zip_cmd="go run ./scripts/release/zipdir"
+	else
+		zip_cmd="zip"
 	fi
 
 	require_file "$server_bin"
@@ -98,10 +99,14 @@ package_zip() {
 	copy_common_files "$package_dir"
 	write_readme "$package_dir" "${os}/${arch}" ".exe"
 
-	(
-		cd "$DIST_DIR"
-		zip -qr "${package_name}.zip" "$package_name"
-	)
+	if [ "$zip_cmd" = "zip" ]; then
+		(
+			cd "$DIST_DIR"
+			zip -qr "${package_name}.zip" "$package_name"
+		)
+	else
+		$zip_cmd "$DIST_DIR/${package_name}.zip" "$DIST_DIR" "$package_name"
+	fi
 	rm -rf "$package_dir"
 }
 

@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/spf13/cobra"
 )
@@ -26,6 +27,7 @@ func init() {
 	// Server commands
 	rootCmd.AddCommand(startCmd)
 	rootCmd.AddCommand(validateCmd)
+	rootCmd.AddCommand(doctorCmd)
 	rootCmd.AddCommand(statusCmd)
 	rootCmd.AddCommand(reloadCmd)
 
@@ -87,6 +89,30 @@ var validateCmd = &cobra.Command{
 			os.Exit(1)
 		}
 		fmt.Println("✅ Configuration is valid")
+	},
+}
+
+// Doctor command
+var doctorCmd = &cobra.Command{
+	Use:   "doctor",
+	Short: "Run operational checks for a GONK config and optional live gateway",
+	Run: func(cmd *cobra.Command, args []string) {
+		configPath, _ := cmd.Flags().GetString("config")
+		checkAdmin, _ := cmd.Flags().GetBool("check-admin")
+		checkUpstreams, _ := cmd.Flags().GetBool("check-upstreams")
+		timeout, _ := cmd.Flags().GetDuration("timeout")
+		warnDays, _ := cmd.Flags().GetInt("warn-days")
+
+		if err := runDoctor(doctorOptions{
+			ConfigPath:     configPath,
+			CheckAdmin:     checkAdmin,
+			CheckUpstreams: checkUpstreams,
+			Timeout:        timeout,
+			WarnDays:       warnDays,
+		}); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
 	},
 }
 
@@ -400,6 +426,13 @@ func init() {
 
 	// Validate flags
 	validateCmd.Flags().StringP("config", "c", "gonk.yaml", "Configuration file path")
+
+	// Doctor flags
+	doctorCmd.Flags().StringP("config", "c", "gonk.yaml", "Configuration file path")
+	doctorCmd.Flags().Bool("check-admin", false, "Check the live GONK admin/status endpoint")
+	doctorCmd.Flags().Bool("check-upstreams", false, "Probe configured HTTP/HTTPS upstreams")
+	doctorCmd.Flags().Duration("timeout", 2*time.Second, "Timeout for live checks")
+	doctorCmd.Flags().Int("warn-days", 30, "Warn when certificates expire within this many days")
 
 	// Init flags
 	initCmd.Flags().StringP("template", "t", "basic", "Template type (basic, industrial, microservices)")

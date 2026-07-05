@@ -1,3 +1,4 @@
+# yaml-language-server: $schema=../docs/gonk.schema.json
 # GONK Community Edition Configuration Example
 server:
   listen: ":8080"
